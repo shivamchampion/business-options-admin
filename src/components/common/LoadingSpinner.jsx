@@ -1,36 +1,22 @@
 import React from 'react';
 
-const LoadingSpinner = ({ size = 'medium', fullScreen = false, text = 'Loading...' }) => {
-  // Size variants
-  const sizeClasses = {
-    small: 'w-5 h-5 border-2',
-    medium: 'w-10 h-10 border-3',
-    large: 'w-16 h-16 border-4',
-  };
-
-  // Spinner element
-  const spinner = (
-    <div className="flex flex-col items-center justify-center">
-      <div
-        className={`${sizeClasses[size]} rounded-full border-solid border-light-blue border-t-brand-blue animate-spin`}
-        role="status"
-        aria-label="Loading"
-      ></div>
-      {text && <p className="mt-2 text-gray">{text}</p>}
-    </div>
-  );
-
-  // Return full screen spinner if needed
+const LoadingSpinner = ({ fullScreen = false }) => {
   if (fullScreen) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-white bg-opacity-80 z-50">
-        {spinner}
+      <div className="fixed inset-0 flex items-center justify-center bg-light-blue bg-opacity-75 z-50">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-blue"></div>
+          <p className="mt-4 text-brand-blue font-medium">Loading...</p>
+        </div>
       </div>
     );
   }
 
-  // Return inline spinner
-  return spinner;
+  return (
+    <div className="flex justify-center p-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-blue"></div>
+    </div>
+  );
 };
 
 export default LoadingSpinner;

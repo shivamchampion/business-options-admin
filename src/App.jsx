@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Contexts
@@ -10,7 +9,6 @@ import { NavigationProvider } from './contexts/NavigationContext';
 import MainLayout from './components/layout/MainLayout';
 
 // Common Components
-import LoadingSpinner from './components/common/LoadingSpinner';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
 // Pages
@@ -72,21 +70,6 @@ import SubscriptionPlans from './pages/settings/SubscriptionPlans';
 import SystemLogs from './pages/settings/SystemLogs';
 
 function App() {
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate initial loading
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (loading) {
-    return <LoadingSpinner fullScreen={true} />;
-  }
-
   return (
     <AuthProvider>
       <ThemeProvider>
@@ -100,87 +83,247 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               
-              {/* User Management */}
+              {/* User Management - Admin only */}
               <Route path="/users">
-                <Route index element={<UserList />} />
-                <Route path="create" element={<UserCreate />} />
-                <Route path=":userId" element={<UserDetail />} />
-                <Route path=":userId/edit" element={<UserEdit />} />
+                <Route index element={
+                  <ProtectedRoute requiredPermission="users.view">
+                    <UserList />
+                  </ProtectedRoute>
+                } />
+                <Route path="create" element={
+                  <ProtectedRoute requiredPermission="users.create">
+                    <UserCreate />
+                  </ProtectedRoute>
+                } />
+                <Route path=":userId" element={
+                  <ProtectedRoute requiredPermission="users.view">
+                    <UserDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path=":userId/edit" element={
+                  <ProtectedRoute requiredPermission="users.edit">
+                    <UserEdit />
+                  </ProtectedRoute>
+                } />
               </Route>
               
               <Route path="/roles">
-                <Route index element={<RoleList />} />
-                <Route path="create" element={<RoleCreate />} />
-                <Route path=":roleId/edit" element={<RoleEdit />} />
+                <Route index element={
+                  <ProtectedRoute requiredPermission="users.view">
+                    <RoleList />
+                  </ProtectedRoute>
+                } />
+                <Route path="create" element={
+                  <ProtectedRoute requiredPermission="users.create">
+                    <RoleCreate />
+                  </ProtectedRoute>
+                } />
+                <Route path=":roleId/edit" element={
+                  <ProtectedRoute requiredPermission="users.edit">
+                    <RoleEdit />
+                  </ProtectedRoute>
+                } />
               </Route>
               
               {/* Advisor Management */}
               <Route path="/advisors">
-                <Route index element={<AdvisorList />} />
-                <Route path="create" element={<AdvisorCreate />} />
-                <Route path=":advisorId" element={<AdvisorDetail />} />
-                <Route path=":advisorId/edit" element={<AdvisorEdit />} />
+                <Route index element={
+                  <ProtectedRoute requiredPermission="advisors.view">
+                    <AdvisorList />
+                  </ProtectedRoute>
+                } />
+                <Route path="create" element={
+                  <ProtectedRoute requiredPermission="advisors.create">
+                    <AdvisorCreate />
+                  </ProtectedRoute>
+                } />
+                <Route path=":advisorId" element={
+                  <ProtectedRoute requiredPermission="advisors.view">
+                    <AdvisorDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path=":advisorId/edit" element={
+                  <ProtectedRoute requiredPermission="advisors.edit">
+                    <AdvisorEdit />
+                  </ProtectedRoute>
+                } />
               </Route>
               
               <Route path="/leads">
-                <Route index element={<LeadList />} />
-                <Route path=":leadId" element={<LeadDetail />} />
+                <Route index element={
+                  <ProtectedRoute requiredPermission="advisors.view">
+                    <LeadList />
+                  </ProtectedRoute>
+                } />
+                <Route path=":leadId" element={
+                  <ProtectedRoute requiredPermission="advisors.view">
+                    <LeadDetail />
+                  </ProtectedRoute>
+                } />
               </Route>
               
-              <Route path="/commission-structure" element={<CommissionStructure />} />
-              <Route path="/payments" element={<Payments />} />
+              <Route path="/commission-structure" element={
+                <ProtectedRoute requiredPermission="advisors.view">
+                  <CommissionStructure />
+                </ProtectedRoute>
+              } />
+              <Route path="/payments" element={
+                <ProtectedRoute requiredPermission="advisors.view">
+                  <Payments />
+                </ProtectedRoute>
+              } />
               
               {/* Listings Management */}
               <Route path="/listings">
-                <Route index element={<ListingList />} />
-                <Route path="create" element={<ListingCreate />} />
-                <Route path=":listingId" element={<ListingDetail />} />
-                <Route path=":listingId/edit" element={<ListingEdit />} />
-                <Route path="featured" element={<FeaturedListings />} />
-                <Route path="pending" element={<PendingApproval />} />
+                <Route index element={
+                  <ProtectedRoute requiredPermission="listings.view">
+                    <ListingList />
+                  </ProtectedRoute>
+                } />
+                <Route path="create" element={
+                  <ProtectedRoute requiredPermission="listings.create">
+                    <ListingCreate />
+                  </ProtectedRoute>
+                } />
+                <Route path=":listingId" element={
+                  <ProtectedRoute requiredPermission="listings.view">
+                    <ListingDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path=":listingId/edit" element={
+                  <ProtectedRoute requiredPermission="listings.edit">
+                    <ListingEdit />
+                  </ProtectedRoute>
+                } />
+                <Route path="featured" element={
+                  <ProtectedRoute requiredPermission="listings.view">
+                    <FeaturedListings />
+                  </ProtectedRoute>
+                } />
+                <Route path="pending" element={
+                  <ProtectedRoute requiredPermission="listings.approve">
+                    <PendingApproval />
+                  </ProtectedRoute>
+                } />
               </Route>
               
               {/* Insta Apply */}
               <Route path="/applications">
-                <Route index element={<ApplicationList />} />
-                <Route path=":applicationId" element={<ApplicationDetail />} />
-                <Route path="new" element={<NewApplications />} />
-                <Route path="processed" element={<ProcessedApplications />} />
+                <Route index element={
+                  <ProtectedRoute requiredPermission="instapply.view">
+                    <ApplicationList />
+                  </ProtectedRoute>
+                } />
+                <Route path=":applicationId" element={
+                  <ProtectedRoute requiredPermission="instapply.view">
+                    <ApplicationDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="new" element={
+                  <ProtectedRoute requiredPermission="instapply.view">
+                    <NewApplications />
+                  </ProtectedRoute>
+                } />
+                <Route path="processed" element={
+                  <ProtectedRoute requiredPermission="instapply.view">
+                    <ProcessedApplications />
+                  </ProtectedRoute>
+                } />
               </Route>
               
               {/* Content Management */}
               <Route path="/content">
                 <Route path="pages">
-                  <Route index element={<Pages />} />
+                  <Route index element={
+                    <ProtectedRoute requiredPermission="content.view">
+                      <Pages />
+                    </ProtectedRoute>
+                  } />
                 </Route>
                 <Route path="blogs">
-                  <Route index element={<Blogs />} />
+                  <Route index element={
+                    <ProtectedRoute requiredPermission="content.view">
+                      <Blogs />
+                    </ProtectedRoute>
+                  } />
                 </Route>
                 <Route path="faqs">
-                  <Route index element={<Faqs />} />
+                  <Route index element={
+                    <ProtectedRoute requiredPermission="content.view">
+                      <Faqs />
+                    </ProtectedRoute>
+                  } />
                 </Route>
                 <Route path="testimonials">
-                  <Route index element={<Testimonials />} />
+                  <Route index element={
+                    <ProtectedRoute requiredPermission="content.view">
+                      <Testimonials />
+                    </ProtectedRoute>
+                  } />
                 </Route>
-                <Route path="media" element={<MediaLibrary />} />
+                <Route path="media" element={
+                  <ProtectedRoute requiredPermission="content.view">
+                    <MediaLibrary />
+                  </ProtectedRoute>
+                } />
               </Route>
               
               {/* Analytics */}
               <Route path="/analytics">
-                <Route index element={<AnalyticsOverview />} />
-                <Route path="users" element={<UserAnalytics />} />
-                <Route path="listings" element={<ListingAnalytics />} />
-                <Route path="conversions" element={<ConversionReports />} />
-                <Route path="advisors" element={<AdvisorPerformance />} />
+                <Route index element={
+                  <ProtectedRoute requiredPermission="analytics.view">
+                    <AnalyticsOverview />
+                  </ProtectedRoute>
+                } />
+                <Route path="users" element={
+                  <ProtectedRoute requiredPermission="analytics.view">
+                    <UserAnalytics />
+                  </ProtectedRoute>
+                } />
+                <Route path="listings" element={
+                  <ProtectedRoute requiredPermission="analytics.view">
+                    <ListingAnalytics />
+                  </ProtectedRoute>
+                } />
+                <Route path="conversions" element={
+                  <ProtectedRoute requiredPermission="analytics.view">
+                    <ConversionReports />
+                  </ProtectedRoute>
+                } />
+                <Route path="advisors" element={
+                  <ProtectedRoute requiredPermission="analytics.view">
+                    <AdvisorPerformance />
+                  </ProtectedRoute>
+                } />
               </Route>
               
               {/* Settings */}
               <Route path="/settings">
-                <Route index element={<GeneralSettings />} />
-                <Route path="email-templates" element={<EmailTemplates />} />
-                <Route path="payment-gateway" element={<PaymentGateway />} />
-                <Route path="subscription-plans" element={<SubscriptionPlans />} />
-                <Route path="system-logs" element={<SystemLogs />} />
+                <Route index element={
+                  <ProtectedRoute requiredPermission="settings.view">
+                    <GeneralSettings />
+                  </ProtectedRoute>
+                } />
+                <Route path="email-templates" element={
+                  <ProtectedRoute requiredPermission="settings.view">
+                    <EmailTemplates />
+                  </ProtectedRoute>
+                } />
+                <Route path="payment-gateway" element={
+                  <ProtectedRoute requiredPermission="settings.view">
+                    <PaymentGateway />
+                  </ProtectedRoute>
+                } />
+                <Route path="subscription-plans" element={
+                  <ProtectedRoute requiredPermission="settings.view">
+                    <SubscriptionPlans />
+                  </ProtectedRoute>
+                } />
+                <Route path="system-logs" element={
+                  <ProtectedRoute requiredPermission="settings.view">
+                    <SystemLogs />
+                  </ProtectedRoute>
+                } />
               </Route>
             </Route>
             

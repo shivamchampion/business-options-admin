@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 const Login = () => {
@@ -38,7 +38,7 @@ const Login = () => {
         navigate('/dashboard');
       }
     } catch (error) {
-      setLoginError('Failed to sign in. Please check your credentials and try again.');
+      setLoginError(error.message || 'Failed to sign in. Please check your credentials and try again.');
       console.error('Login error:', error);
     } finally {
       setIsSubmitting(false);
@@ -47,15 +47,15 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-light-blue py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white shadow-card rounded-lg p-8">
+      <div className="max-w-md w-full space-y-8 bg-white shadow-md rounded-lg p-8">
         {/* Logo and Title */}
         <div className="text-center">
           <img
-            src="/logo.svg"
+            src="/logo.png"
             alt="Business Options Logo"
             className="mx-auto h-12 w-auto"
           />
-          <h2 className="mt-6 text-h2 font-bold text-dark-gray">
+          <h2 className="mt-6 text-3xl font-bold text-dark-gray">
             Admin Panel Login
           </h2>
           <p className="mt-2 text-sm text-gray">
@@ -67,15 +67,16 @@ const Login = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           {/* Error Message */}
           {loginError && (
-            <div className="bg-error bg-opacity-10 text-error text-sm p-3 rounded-md">
-              {loginError}
+            <div className="flex items-center bg-red-50 text-red-600 text-sm p-3 rounded-md">
+              <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+              <span>{loginError}</span>
             </div>
           )}
 
           <div className="space-y-4">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="form-label">
+              <label htmlFor="email" className="block text-sm font-medium text-dark-gray mb-1">
                 Email Address
               </label>
               <input
@@ -91,18 +92,18 @@ const Login = () => {
                 })}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                   errors.email
-                    ? 'border-error focus:ring-error'
-                    : 'border-gray-200 focus:ring-brand-blue'
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-brand-blue'
                 }`}
               />
               {errors.email && (
-                <p className="mt-1 text-xs text-error">{errors.email.message}</p>
+                <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>
               )}
             </div>
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="form-label">
+              <label htmlFor="password" className="block text-sm font-medium text-dark-gray mb-1">
                 Password
               </label>
               <div className="relative">
@@ -119,13 +120,13 @@ const Login = () => {
                   })}
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                     errors.password
-                      ? 'border-error focus:ring-error'
-                      : 'border-gray-200 focus:ring-brand-blue'
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:ring-brand-blue'
                   }`}
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
@@ -136,29 +137,21 @@ const Login = () => {
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-xs text-error">{errors.password.message}</p>
+                <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
               )}
             </div>
 
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-brand-blue border-gray-300 rounded focus:ring-brand-blue"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray">
-                  Remember me
-                </label>
-              </div>
-
-              <div className="text-sm">
-                <a href="#" className="text-brand-blue hover:underline">
-                  Forgot your password?
-                </a>
-              </div>
+            {/* Remember Me */}
+            <div className="flex items-center">
+              <input
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                className="h-4 w-4 text-brand-blue border-gray-300 rounded focus:ring-brand-blue"
+              />
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-600">
+                Remember me
+              </label>
             </div>
           </div>
 
@@ -167,7 +160,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-brand-blue hover:bg-medium-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-brand-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -183,7 +176,7 @@ const Login = () => {
         </form>
 
         {/* Footer */}
-        <div className="mt-6 text-center text-xs text-gray">
+        <div className="mt-6 text-center text-xs text-gray-500">
           <p>
             &copy; {new Date().getFullYear()} Business Options Platform. All rights reserved.
           </p>
