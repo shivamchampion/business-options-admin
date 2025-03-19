@@ -13,7 +13,8 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 
 const Header = ({ toggleSidebar, sidebarOpen }) => {
-  const { currentUser, signOut } = useAuth();
+  // FIXED: Using logout instead of signOut to match what's provided by the context
+  const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -21,8 +22,13 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
 
   // Handle user logout
   const handleLogout = async () => {
-    await signOut();
-    navigate('/login');
+    try {
+      await logout(); // FIXED: Using the correct function name
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Optionally add error handling UI here
+    }
   };
 
   // Toggle dark mode
