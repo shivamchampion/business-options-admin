@@ -4,7 +4,7 @@ import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Filter, Search, Slide
 
 // Components
 import PageHeader from '../../components/layout/PageHeader'
-import Card from '../../components/ui/Card';
+import {Card} from '../../components/ui/card';
 import ApplicationCard from '../../components/insta-apply/ApplicationCard';
 // import Pagination from '../../components/common/Pagination';
 import StatusBadge from '../../components/common/StatusBadge';

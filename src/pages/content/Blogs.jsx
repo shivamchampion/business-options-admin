@@ -3,8 +3,8 @@ import { Plus, Search, Edit, Trash2, Eye, Calendar, Filter, Tag, UserCircle, Arr
 
 // Components
 import PageHeader from '../../components/layout/PageHeader';
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
+import Card from '../../components/ui/card';
+import Button from '../../components/ui/button';
 // import Pagination from '../../components/common/Pagination';
 
 const Blogs = () => {

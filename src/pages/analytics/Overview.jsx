@@ -3,8 +3,8 @@ import { BarChart, PieChart, LineChart, Users, ShoppingBag, DollarSign, Trending
 
 // Components
 import PageHeader from '../../components/layout/PageHeader';
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
+import Card from '../../components/ui/card';
+import Button from '../../components/ui/button';
 
 const AnalyticsOverview = () => {
   const [timeRange, setTimeRange] = useState('month');

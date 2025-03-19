@@ -1,348 +1,393 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { 
-  Image, 
-  UploadCloud, 
-  X, 
-  Star, 
-  AlertTriangle, 
-  Info,
-  Move
-} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { useDropzone } from 'react-dropzone';
-import { VALIDATION } from '../../../utils/constants';
-import { formatFileSize } from '../../../utils/formatters';
+import { Toast } from '@/components/ui/use-toast';
+import { uploadImage, deleteImage } from '@/services/storage';
+import { v4 as uuidv4 } from 'uuid';
 
-const MediaUpload = ({ images = [], setImages }) => {
-  const { formState: { errors } } = useFormContext();
-  const [featuredImageIndex, setFeaturedImageIndex] = useState(0);
-  const [uploadErrors, setUploadErrors] = useState([]);
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MIN_IMAGES = 3;
+const MAX_IMAGES = 10;
+
+const MediaUpload = () => {
+  const { control, setValue, watch } = useFormContext();
   
-  // Validate image dimensions
-  const validateImageDimensions = (file) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const valid = 
-          img.width >= VALIDATION.MIN_IMAGE_WIDTH && 
-          img.height >= VALIDATION.MIN_IMAGE_HEIGHT;
-        resolve(valid);
-      };
-      img.onerror = () => {
-        resolve(false);
-      };
-      img.src = URL.createObjectURL(file);
-    });
-  };
+  const galleryImages = watch('media.galleryImages') || [];
+  const featuredImage = watch('media.featuredImage');
   
-  // Handle file drop
-  const onDrop = useCallback(async (acceptedFiles, rejectedFiles) => {
-    const errors = [];
-    
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  
+  const onDrop = async (acceptedFiles, rejectedFiles) => {
     // Handle rejected files
-    if (rejectedFiles && rejectedFiles.length > 0) {
-      rejectedFiles.forEach(rejected => {
-        const error = {
-          file: rejected.file.name,
-          errors: rejected.errors.map(err => err.message)
-        };
-        errors.push(error);
+    if (rejectedFiles.length > 0) {
+      rejectedFiles.forEach(file => {
+        if (file.errors.some(e => e.code === 'file-too-large')) {
+          Toast({
+            title: "File too large",
+            description: `${file.file.name} exceeds the 5MB limit.`,
+            variant: "destructive",
+          });
+        } else if (file.errors.some(e => e.code === 'file-invalid-type')) {
+          Toast({
+            title: "Invalid file type",
+            description: `${file.file.name} is not a valid image file.`,
+            variant: "destructive",
+          });
+        }
       });
     }
     
-    // Validate dimensions for accepted files
-    const validatedFiles = [];
-    for (const file of acceptedFiles) {
-      const dimensionsValid = await validateImageDimensions(file);
-      if (dimensionsValid) {
-        validatedFiles.push(file);
-      } else {
-        errors.push({
-          file: file.name,
-          errors: [`Image must be at least ${VALIDATION.MIN_IMAGE_WIDTH}x${VALIDATION.MIN_IMAGE_HEIGHT}px`]
+    // Check if adding new files would exceed the maximum
+    if (galleryImages.length + acceptedFiles.length > MAX_IMAGES) {
+      Toast({
+        title: "Too many images",
+        description: `You can upload a maximum of ${MAX_IMAGES} images.`,
+        variant: "destructive",
+      });
+      
+      // Only accept files up to the maximum
+      acceptedFiles = acceptedFiles.slice(0, MAX_IMAGES - galleryImages.length);
+    }
+    
+    if (acceptedFiles.length === 0) return;
+    
+    setUploading(true);
+    const newProgress = { ...uploadProgress };
+    const newImages = [...galleryImages];
+    
+    for (let i = 0; i < acceptedFiles.length; i++) {
+      const file = acceptedFiles[i];
+      const id = uuidv4();
+      newProgress[id] = 0;
+      
+      setUploadProgress(newProgress);
+      
+      try {
+        // Upload to Firebase Storage
+        const { url, path } = await uploadImage(
+          file,
+          'listings',
+          (progress) => {
+            setUploadProgress(prev => ({
+              ...prev,
+              [id]: progress
+            }));
+          }
+        );
+        
+        // Add to form state
+        newImages.push({
+          id,
+          url,
+          path,
+          alt: file.name,
+        });
+        
+        // If this is the first image, set it as featured
+        if (newImages.length === 1 || !featuredImage) {
+          setValue('media.featuredImage', {
+            url,
+            path,
+            alt: file.name,
+          }, { shouldValidate: true });
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        Toast({
+          title: "Upload failed",
+          description: `Failed to upload ${file.name}.`,
+          variant: "destructive",
         });
       }
+      
+      // Remove from progress tracking
+      delete newProgress[id];
     }
     
-    // Update error state
-    setUploadErrors(errors);
-    
-    // Check if adding these images would exceed the maximum
-    if (images.length + validatedFiles.length > VALIDATION.MAX_IMAGES) {
-      alert(`You can upload a maximum of ${VALIDATION.MAX_IMAGES} images.`);
-      return;
-    }
-    
-    // Add valid images to state
-    setImages(prevImages => [...prevImages, ...validatedFiles]);
-  }, [images, setImages]);
+    setValue('media.galleryImages', newImages, { shouldValidate: true });
+    setUploadProgress(newProgress);
+    setUploading(false);
+  };
   
-  // Configure dropzone
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/jpeg': ['.jpg', '.jpeg'],
-      'image/png': ['.png']
+      'image/jpeg': [],
+      'image/png': [],
+      'image/webp': [],
     },
-    maxSize: VALIDATION.MAX_IMAGE_SIZE,
-    multiple: true,
-    maxFiles: VALIDATION.MAX_IMAGES,
+    maxSize: MAX_FILE_SIZE,
+    disabled: uploading || galleryImages.length >= MAX_IMAGES,
   });
   
-  // Remove image
-  const removeImage = (index) => {
-    setImages(prevImages => {
-      const newImages = [...prevImages];
-      newImages.splice(index, 1);
-      
-      // If removing the featured image, set the first image as featured
-      if (index === featuredImageIndex) {
-        setFeaturedImageIndex(0);
-      } 
-      // If removing an image before the featured one, adjust the index
-      else if (index < featuredImageIndex) {
-        setFeaturedImageIndex(featuredImageIndex - 1);
-      }
-      
-      return newImages;
-    });
-  };
-  
-  // Set featured image
-  const setFeaturedImage = (index) => {
-    setFeaturedImageIndex(index);
-  };
-  
-  // Move image in array (for reordering)
-  const moveImage = (fromIndex, toIndex) => {
-    if (toIndex < 0 || toIndex >= images.length) return;
+  const handleRemoveImage = async (index) => {
+    const imageToRemove = galleryImages[index];
+    const newImages = [...galleryImages];
+    newImages.splice(index, 1);
     
-    setImages(prevImages => {
-      const newImages = [...prevImages];
-      const [movedImage] = newImages.splice(fromIndex, 1);
-      newImages.splice(toIndex, 0, movedImage);
+    try {
+      // Delete from storage
+      await deleteImage(imageToRemove.path);
       
-      // Adjust featured image index if necessary
-      if (fromIndex === featuredImageIndex) {
-        setFeaturedImageIndex(toIndex);
-      } else if (
-        (fromIndex < featuredImageIndex && toIndex >= featuredImageIndex) ||
-        (fromIndex > featuredImageIndex && toIndex <= featuredImageIndex)
-      ) {
-        // Featured image index needs to shift
-        setFeaturedImageIndex(
-          featuredImageIndex + (fromIndex < featuredImageIndex ? -1 : 1)
-        );
+      // Update form state
+      setValue('media.galleryImages', newImages, { shouldValidate: true });
+      
+      // If the removed image was the featured image, set a new one
+      if (featuredImage && featuredImage.path === imageToRemove.path) {
+        setValue('media.featuredImage', newImages.length > 0 ? newImages[0] : null, { shouldValidate: true });
       }
       
-      return newImages;
+      Toast({
+        title: "Image removed",
+        variant: "success",
+      });
+    } catch (error) {
+      console.error('Error removing image:', error);
+      Toast({
+        title: "Removal failed",
+        description: "Could not delete the image. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const handleSetFeatured = (index) => {
+    setValue('media.featuredImage', galleryImages[index], { shouldValidate: true });
+    
+    Toast({
+      title: "Featured image updated",
+      variant: "success",
     });
   };
   
-  // Get image preview URL
-  const getImagePreviewUrl = (image) => {
-    if (typeof image === 'string') {
-      return image;
-    } else if (image.url) {
-      return image.url;
-    } else if (image instanceof File) {
-      return URL.createObjectURL(image);
-    }
-    return '';
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    // Make the ghost image transparent
+    const img = new Image();
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    e.dataTransfer.setDragImage(img, 0, 0);
+  };
+  
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIndex === index) return;
+    
+    const newImages = [...galleryImages];
+    const draggedImage = newImages[draggedIndex];
+    
+    newImages.splice(draggedIndex, 1);
+    newImages.splice(index, 0, draggedImage);
+    
+    setValue('media.galleryImages', newImages, { shouldValidate: true });
+    setDraggedIndex(index);
+  };
+  
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
   };
   
   return (
-    <div className="space-y-6">
-      <div className="form-section">
-        <h2 className="form-section-title">Media Upload</h2>
-        <p className="text-gray text-sm mb-6">
-          Upload high-quality images for your listing. Images should clearly show your offering and help attract potential buyers.
-        </p>
-        
-        {/* Image requirements */}
-        <div className="bg-light-blue bg-opacity-70 rounded-md p-4 border border-brand-blue border-opacity-20 mb-6">
-          <div className="flex items-start">
-            <Info size={20} className="text-brand-blue flex-shrink-0 mt-0.5 mr-3" />
-            <div>
-              <h3 className="text-sm font-medium text-dark-gray mb-1">Image requirements</h3>
-              <ul className="text-sm text-gray space-y-1 list-disc list-inside">
-                <li>Upload at least {VALIDATION.MIN_IMAGES} and up to {VALIDATION.MAX_IMAGES} images</li>
-                <li>JPEG or PNG format only</li>
-                <li>Maximum file size: {formatFileSize(VALIDATION.MAX_IMAGE_SIZE)}</li>
-                <li>Minimum resolution: {VALIDATION.MIN_IMAGE_WIDTH}x{VALIDATION.MIN_IMAGE_HEIGHT}px</li>
-                <li>The first image will be your featured image by default</li>
+    <div className="space-y-8">
+      <div className="text-lg font-semibold">Step 2: Media Upload</div>
+      <p className="text-gray-600">
+        Upload images for your listing. Add at least 3 high-quality images to showcase your offering.
+      </p>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Images</CardTitle>
+          <CardDescription>
+            Add photos that highlight the key features of your listing. First image will be used as the featured image.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Alert>
+            <AlertTitle>Image Requirements</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc pl-5 mt-2 text-sm">
+                <li>Minimum 3, maximum 10 images</li>
+                <li>File types: JPEG, PNG or WebP</li>
+                <li>Maximum 5MB per image</li>
+                <li>Minimum resolution: 800x600 pixels</li>
+                <li>Recommended aspect ratio: 4:3 or 16:9</li>
               </ul>
-            </div>
-          </div>
-        </div>
-        
-        {/* Error summary if validation fails */}
-        {errors.media && (
-          <div className="bg-error bg-opacity-10 text-error text-sm p-4 rounded-md mb-6">
-            <div className="flex items-start">
-              <AlertTriangle size={20} className="mr-2 flex-shrink-0 mt-0.5" />
-              <p>{errors.media.message}</p>
-            </div>
-          </div>
-        )}
-        
-        {/* Upload errors */}
-        {uploadErrors.length > 0 && (
-          <div className="bg-error bg-opacity-10 text-error text-sm p-4 rounded-md mb-6">
-            <div className="flex items-start">
-              <AlertTriangle size={20} className="mr-2 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium mb-1">Some files couldn't be uploaded:</p>
-                <ul className="list-disc list-inside">
-                  {uploadErrors.map((error, index) => (
-                    <li key={index}>
-                      <span className="font-medium">{error.file}</span>: {error.errors.join(', ')}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Dropzone area */}
-        <div 
-          {...getRootProps()} 
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors mb-6 ${
-            isDragActive ? 'border-brand-blue bg-light-blue bg-opacity-50' : 'border-gray-300 hover:border-gray-400'
-          }`}
-        >
-          <input {...getInputProps()} />
-          <UploadCloud 
-            size={48} 
-            className={`mx-auto mb-3 ${isDragActive ? 'text-brand-blue' : 'text-gray-400'}`} 
+            </AlertDescription>
+          </Alert>
+          
+          <FormField
+            control={control}
+            name="media.galleryImages"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel required>Gallery Images</FormLabel>
+                
+                {/* Upload Area */}
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-colors
+                    ${isDragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-300'}
+                    ${uploading || galleryImages.length >= MAX_IMAGES ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <input {...getInputProps()} />
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <div className="text-lg font-medium">Drag and drop images here</div>
+                    <div className="text-sm text-gray-500">or click to browse files</div>
+                  </div>
+                </div>
+                
+                {/* Status Information */}
+                <div className="mt-2 flex items-center justify-between">
+                  <FormDescription>
+                    {galleryImages.length} of {MAX_IMAGES} images uploaded
+                  </FormDescription>
+                  
+                  {galleryImages.length < MIN_IMAGES && (
+                    <div className="text-sm text-red-500">
+                      At least {MIN_IMAGES} images are required
+                    </div>
+                  )}
+                </div>
+                
+                <FormMessage />
+              </FormItem>
+            )}
           />
           
-          {isDragActive ? (
-            <p className="text-md font-medium text-brand-blue">Drop your images here</p>
-          ) : (
-            <>
-              <p className="text-md font-medium text-dark-gray mb-2">
-                Drag and drop images here, or click to select files
-              </p>
-              <p className="text-sm text-gray">
-                {images.length === 0 
-                  ? `Upload at least ${VALIDATION.MIN_IMAGES} images to continue.` 
-                  : `${images.length} of ${VALIDATION.MAX_IMAGES} images uploaded.`}
-              </p>
-            </>
+          {/* Upload Progress */}
+          {Object.keys(uploadProgress).length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Uploading images...</div>
+              {Object.entries(uploadProgress).map(([id, progress]) => (
+                <div key={id} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span>Uploading image...</span>
+                    <span>{Math.round(progress)}%</span>
+                  </div>
+                  <Progress value={progress} />
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-        
-        {/* Image preview grid */}
-        {images.length > 0 && (
-          <div>
-            <h3 className="text-md font-medium text-dark-gray mb-3">
-              Uploaded Images ({images.length}/{VALIDATION.MAX_IMAGES})
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {images.map((image, index) => (
-                <div 
-                  key={index} 
-                  className={`relative rounded-md overflow-hidden border-2 ${
-                    index === featuredImageIndex 
-                      ? 'border-warning' 
-                      : 'border-gray-200'
-                  }`}
-                >
-                  {/* Image */}
-                  <div className="aspect-video bg-gray-100 relative">
-                    <img
-                      src={getImagePreviewUrl(image)}
-                      alt={`Listing image ${index + 1}`}
-                      className="w-full h-full object-cover"
+          
+          {/* Image Gallery */}
+          {galleryImages.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium mb-3">Uploaded Images</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {galleryImages.map((image, index) => (
+                  <div 
+                    key={image.id || index}
+                    className={`relative group border rounded-md overflow-hidden
+                      ${featuredImage && featuredImage.path === image.path ? 'ring-2 ring-blue-500' : ''}
+                      ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <img 
+                      src={image.url} 
+                      alt={image.alt || `Image ${index + 1}`}
+                      className="w-full h-40 object-cover"
                     />
                     
-                    {/* Featured badge */}
-                    {index === featuredImageIndex && (
-                      <div className="absolute top-2 left-2 bg-warning text-white text-xs py-1 px-2 rounded-md font-medium flex items-center">
-                        <Star size={12} className="mr-1" />
+                    {/* Badge for featured image */}
+                    {featuredImage && featuredImage.path === image.path && (
+                      <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs py-1 px-2 rounded-full">
                         Featured
                       </div>
                     )}
-                  </div>
-                  
-                  {/* Control buttons */}
-                  <div className="p-2 bg-white">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-gray truncate flex-1">
-                        {image instanceof File ? image.name : `Image ${index + 1}`}
-                      </div>
-                      
-                      <div className="flex items-center space-x-1">
-                        {/* Move left */}
-                        <button
-                          type="button"
-                          onClick={() => moveImage(index, index - 1)}
-                          disabled={index === 0}
-                          className={`p-1 rounded-md text-gray hover:text-dark-gray hover:bg-gray-100 ${
-                            index === 0 ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          title="Move left"
-                        >
-                          <Move size={14} className="rotate-90" />
-                        </button>
-                        
-                        {/* Move right */}
-                        <button
-                          type="button"
-                          onClick={() => moveImage(index, index + 1)}
-                          disabled={index === images.length - 1}
-                          className={`p-1 rounded-md text-gray hover:text-dark-gray hover:bg-gray-100 ${
-                            index === images.length - 1 ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          title="Move right"
-                        >
-                          <Move size={14} className="-rotate-90" />
-                        </button>
-                        
-                        {/* Set as featured */}
-                        {index !== featuredImageIndex && (
-                          <button
-                            type="button"
-                            onClick={() => setFeaturedImage(index)}
-                            className="p-1 rounded-md text-gray hover:text-warning hover:bg-gray-100"
-                            title="Set as featured image"
+                    
+                    {/* Image Actions */}
+                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex space-x-2">
+                        {/* Set as Featured */}
+                        {(!featuredImage || featuredImage.path !== image.path) && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleSetFeatured(index)}
                           >
-                            <Star size={14} />
-                          </button>
+                            Set Featured
+                          </Button>
                         )}
                         
                         {/* Remove */}
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="p-1 rounded-md text-gray hover:text-error hover:bg-gray-100"
-                          title="Remove image"
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRemoveImage(index)}
                         >
-                          <X size={14} />
-                        </button>
+                          Remove
+                        </Button>
                       </div>
                     </div>
+                    
+                    {/* Drag Handle */}
+                    <div className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full w-6 h-6 flex items-center justify-center cursor-move">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                      </svg>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
               
-              {/* Placeholder for more images */}
-              {images.length < VALIDATION.MAX_IMAGES && (
-                <div 
-                  {...getRootProps()} 
-                  className="aspect-video rounded-md border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-gray-400"
-                >
-                  <input {...getInputProps()} />
-                  <Image size={24} className="text-gray-400 mb-2" />
-                  <span className="text-sm text-gray">Add more</span>
-                </div>
-              )}
+              <div className="mt-4 text-sm text-gray-500">
+                <p>Drag and drop images to reorder. Set one image as featured.</p>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Image Descriptions</CardTitle>
+          <CardDescription>
+            Add descriptions to help potential buyers understand what they're seeing.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {galleryImages.map((image, index) => (
+            <FormField
+              key={image.id || index}
+              control={control}
+              name={`media.galleryImages.${index}.alt`}
+              render={({ field }) => (
+                <FormItem className="flex items-center space-x-4">
+                  <img 
+                    src={image.url} 
+                    alt={image.alt || `Image ${index + 1}`}
+                    className="w-16 h-16 object-cover rounded-md"
+                  />
+                  <div className="flex-grow">
+                    <FormLabel>Image {index + 1} Description {index === 0 ? "(Featured)" : ""}</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Describe what this image shows" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </div>
+                </FormItem>
+              )}
+            />
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 };

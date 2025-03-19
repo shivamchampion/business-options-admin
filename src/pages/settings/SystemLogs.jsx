@@ -3,8 +3,8 @@ import { Calendar, Clock, Search, AlertTriangle, Info, Check, RefreshCw, Downloa
 
 // Components
 import PageHeader from '../../components/layout/PageHeader';
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
+import Card from '../../components/ui/card';
+import Button from '../../components/ui/button';
 
 const SystemLogs = () => {
   const [logs, setLogs] = useState([]);

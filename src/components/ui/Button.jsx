@@ -1,51 +1,60 @@
-import React from 'react';
+import * as React from "react"
+import { cva } from "class-variance-authority"
+import { cn } from "@/lib/utils"
 
-const Button = ({ 
-  children, 
-  onClick, 
-  type = 'button', 
-  variant = 'primary', 
-  size = 'md',
-  className = '',
-  disabled = false,
-  ...props 
-}) => {
-  const baseClasses = 'inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2';
-  
-  // Size classes
-  const sizeClasses = {
-    sm: 'px-2.5 py-1.5 text-xs',
-    md: 'px-4 py-2 text-sm',
-    lg: 'px-6 py-3 text-base'
-  };
-  
-  // Variant classes
-  const variantClasses = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 border border-transparent',
-    secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500 border border-transparent',
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 border border-transparent',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 border border-transparent',
-    warning: 'bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500 border border-transparent',
-    outline: 'bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500 border border-gray-300',
-    ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500 border border-transparent'
-  };
-  
-  // Disabled state
-  const disabledClasses = disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer';
-  
-  const buttonClasses = `${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]} ${disabledClasses} ${className}`;
-  
-  return (
-    <button
-      type={type}
-      className={buttonClasses}
-      onClick={onClick}
-      disabled={disabled}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-};
+// Button variants following the design system
+const buttonVariants = cva(
+  "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0031AC] focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none",
+  {
+    variants: {
+      variant: {
+        default: "bg-[#0031AC] text-white hover:bg-[#002C9D] active:bg-[#00287A]",
+        secondary: "bg-white text-[#0031AC] border border-[#0031AC] hover:bg-[#E6EEFF] active:bg-[#D1DFFF]",
+        tertiary: "bg-transparent text-[#0031AC] hover:bg-[#E6EEFF] active:bg-[#D1DFFF]",
+        destructive: "bg-[#DC3545] text-white hover:bg-[#C82333] active:bg-[#B21F2D]",
+        success: "bg-[#00A651] text-white hover:bg-[#009247] active:bg-[#007E3D]",
+        warning: "bg-[#FFC107] text-[#333333] hover:bg-[#E5AD06] active:bg-[#CC9A06]",
+        ghost: "bg-transparent hover:bg-gray-100 text-[#333333]",
+        link: "bg-transparent text-[#0031AC] underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 py-2 px-4",
+        sm: "h-8 px-3 text-xs",
+        lg: "h-12 px-6 text-base",
+        icon: "h-10 w-10 p-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
 
+/**
+ * Button component
+ * 
+ * @param {object} props - Component props
+ * @param {React.ReactNode} props.children - Button content
+ * @param {string} [props.className] - Additional CSS classes
+ * @param {string} [props.variant] - Button style variant
+ * @param {string} [props.size] - Button size
+ * @param {boolean} [props.disabled] - Disabled state
+ * @param {React.ElementType} [props.asChild] - Render as different element
+ */
+const Button = React.forwardRef(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? React.Slot : "button"
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+Button.displayName = "Button"
+
+export { Button, buttonVariants };
 export default Button;

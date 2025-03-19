@@ -51,7 +51,7 @@ const Login = () => {
         {/* Logo and Title */}
         <div className="text-center">
           <img
-            src="/logo.png"
+            src=""
             alt="Business Options Logo"
             className="mx-auto h-12 w-auto"
           />

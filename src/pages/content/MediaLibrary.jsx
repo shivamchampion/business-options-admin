@@ -3,8 +3,8 @@ import { Upload, Grid, List, Search, Filter, Trash2, Download, Plus } from 'luci
 
 // Components
 import PageHeader from '../../components/layout/PageHeader';
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
+import Card from '../../components/ui/card';
+import Button from '../../components/ui/button';
 // import Pagination from '../../components/common/Pagination';
 
 const MediaLibrary = () => {
