@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
   LayoutDashboard,
@@ -104,7 +104,36 @@ const navItems = [
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { hasPermission, userRole } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState([]);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  // Handle screen resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // Set initially expanded items based on current path
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const shouldExpandItems = navItems
+      .filter(item => 
+        currentPath === item.path || 
+        item.children?.some(child => 
+          currentPath === child.path || currentPath.startsWith(child.path)
+        )
+      )
+      .map(item => item.title);
+    
+    setExpandedItems(shouldExpandItems);
+  }, [location.pathname]);
 
   // Add isAdmin function since it doesn't exist in the context
   const isAdmin = () => {
@@ -112,11 +141,40 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   };
 
   // Toggle submenu expansion
-  const toggleExpand = (title) => {
+  const toggleExpand = (e, title) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (expandedItems.includes(title)) {
       setExpandedItems(expandedItems.filter(item => item !== title));
     } else {
       setExpandedItems([...expandedItems, title]);
+    }
+  };
+
+  // Handle navigation item click
+  const handleNavItemClick = (e, item) => {
+    const hasChildren = item.children && item.children.length > 0;
+    
+    if (!isOpen && hasChildren) {
+      e.preventDefault();
+      toggleSidebar();
+      
+      // Expand this item after the sidebar opens
+      setTimeout(() => {
+        setExpandedItems(prev => [...prev, item.title]);
+      }, 100);
+    } else if (hasChildren) {
+      // When sidebar is open and item has children
+      if (!expandedItems.includes(item.title)) {
+        e.preventDefault();
+        setExpandedItems(prev => [...prev, item.title]);
+      } else {
+        // If already expanded and path is different from current, navigate
+        if (location.pathname !== item.path) {
+          navigate(item.path);
+        }
+      }
     }
   };
 
@@ -156,82 +214,81 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   return (
     <aside 
-      className={`fixed inset-y-0 left-0 z-30 flex flex-col flex-shrink-0 bg-brand-blue text-white shadow-lg transition-all duration-300 ${
-        isOpen ? 'w-64' : 'w-16'
-      }`}
+      className="fixed inset-y-0 left-0 z-30 flex flex-col flex-shrink-0 bg-[#0031AC] text-white shadow-lg transition-all duration-300 ease-in-out"
+      style={{
+        width: isOpen ? '250px' : '64px',
+        transform: isMobile && !isOpen ? 'translateX(-100%)' : 'translateX(0)'
+      }}
     >
-      {/* Logo Area with White Background */}
-      <div className="h-16 bg-white flex items-center justify-center relative">
-        {/* Centered Logo */}
-        <img 
-          src="/logo.svg" 
-          alt="Business Options Logo" 
-          className={`h-10 w-auto transition-all duration-300 ${
-            isOpen ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
+      {/* Logo at the top of sidebar - white background, centered, only shown when expanded */}
+      {isOpen && (
+        <div className="flex items-center justify-center bg-white py-6">
+          <img 
+            src="/logo.png" 
+            alt="Business Options Logo" 
+            className="h-10 w-auto"
+          />
+        </div>
+      )}
 
-        {/* Collapse button (visible on desktop) */}
-        <button 
-          className="absolute top-1/2 -right-3 transform -translate-y-1/2 w-6 h-6 bg-white text-brand-blue rounded-full flex items-center justify-center border border-light-blue shadow-md cursor-pointer hidden md:flex"
-          onClick={toggleSidebar}
-        >
-          {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-        </button>
-      </div>
+      {/* Collapse button (visible on desktop) */}
+      <button 
+        className="absolute top-20 -right-3 w-6 h-6 bg-white text-brand-blue rounded-full flex items-center justify-center border border-light-blue shadow-md cursor-pointer hidden lg:flex"
+        onClick={toggleSidebar}
+        aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+      >
+        {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+      </button>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-4 overflow-y-auto">
-        <ul className="space-y-1">
+      <nav className={`flex-1 py-6 px-2 overflow-y-auto ${isOpen ? '' : 'mt-16'}`}>
+        <ul className="space-y-2">
           {navItems.map((item) => {
             // Skip items that user doesn't have permission to see
             if (!canSeeRoute(item.path)) return null;
 
             const isItemActive = isActive(item);
-            const isExpanded = expandedItems.includes(item.title) || (isItemActive && item.children.length > 0);
+            const isExpanded = expandedItems.includes(item.title);
+            const hasChildren = item.children && item.children.length > 0;
 
             return (
-              <li key={item.title}>
+              <li key={item.title} className="relative">
                 {/* Parent item */}
-                <div className={`flex items-center ${isItemActive ? 'bg-medium-blue bg-opacity-30' : 'hover:bg-medium-blue hover:bg-opacity-20'} rounded-md overflow-hidden`}>
-                  {/* Main link or toggle button */}
-                  {item.children.length > 0 ? (
+                <div 
+                  className={`flex items-center justify-between ${
+                    isItemActive ? 'bg-medium-blue bg-opacity-30' : 'hover:bg-medium-blue hover:bg-opacity-20'
+                  } rounded-md overflow-hidden`}
+                >
+                  <NavLink
+                    to={item.path}
+                    className="flex items-center py-2 pl-3 pr-1 flex-grow"
+                    onClick={(e) => handleNavItemClick(e, item)}
+                  >
+                    <span className="mr-3">{item.icon}</span>
+                    {isOpen && (
+                      <span className="text-sm font-medium">{item.title}</span>
+                    )}
+                  </NavLink>
+                  
+                  {/* Dropdown toggle - only for parent items with children when sidebar is open */}
+                  {isOpen && hasChildren && (
                     <button
-                      className="flex items-center w-full px-3 py-2 text-left"
-                      onClick={() => toggleExpand(item.title)}
+                      onClick={(e) => toggleExpand(e, item.title)}
+                      className="p-2 text-white focus:outline-none"
+                      aria-label={isExpanded ? `Collapse ${item.title} menu` : `Expand ${item.title} menu`}
                     >
-                      <span className="flex items-center">
-                        <span className="mr-3">{item.icon}</span>
-                        {isOpen && (
-                          <span className="text-sm font-medium">{item.title}</span>
-                        )}
-                      </span>
-                      {isOpen && item.children.length > 0 && (
-                        <span className="ml-auto">
-                          {isExpanded ? (
-                            <ChevronDown size={16} />
-                          ) : (
-                            <ChevronRight size={16} />
-                          )}
-                        </span>
+                      {isExpanded ? (
+                        <ChevronDown size={16} />
+                      ) : (
+                        <ChevronRight size={16} />
                       )}
                     </button>
-                  ) : (
-                    <NavLink
-                      to={item.path}
-                      className="flex items-center w-full px-3 py-2"
-                    >
-                      <span className="mr-3">{item.icon}</span>
-                      {isOpen && (
-                        <span className="text-sm font-medium">{item.title}</span>
-                      )}
-                    </NavLink>
                   )}
                 </div>
 
-                {/* Child items */}
-                {isOpen && isExpanded && item.children.length > 0 && (
-                  <ul className="mt-1 ml-8 space-y-1">
+                {/* Child items - only show when sidebar is open and item is expanded */}
+                {isOpen && isExpanded && hasChildren && (
+                  <ul className="mt-1 ml-7 space-y-1">
                     {item.children.map((child) => {
                       // Skip child items that user doesn't have permission to see
                       if (!canSeeRoute(child.path)) return null;
@@ -242,8 +299,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                         <li key={child.title}>
                           <NavLink
                             to={child.path}
-                            className={`flex items-center px-3 py-1.5 text-xs font-medium rounded-md ${
-                              isChildActive
+                            className={({isActive}) => `flex items-center px-3 py-1.5 text-xs font-medium rounded-md ${
+                              isActive
                                 ? 'bg-medium-blue bg-opacity-30'
                                 : 'hover:bg-medium-blue hover:bg-opacity-20'
                             }`}

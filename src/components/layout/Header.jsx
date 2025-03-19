@@ -1,20 +1,23 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Menu as MenuIcon, 
   Bell, 
   User, 
   LogOut, 
   Settings, 
-  HelpCircle
+  HelpCircle,
+  Moon,
+  Sun,
+  Menu as MenuIcon
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
-const Header = ({ toggleSidebar, sidebarOpen, isMobile }) => {
+const Header = ({ toggleSidebar, sidebarOpen }) => {
   const { currentUser, signOut } = useAuth();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Handle user logout
   const handleLogout = async () => {
@@ -22,44 +25,64 @@ const Header = ({ toggleSidebar, sidebarOpen, isMobile }) => {
     navigate('/login');
   };
 
+  // Toggle dark mode
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+    // Implement dark mode toggle functionality
+  };
+
   return (
-    <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
-      <div className="px-4 h-16 flex items-center justify-between relative">
+    <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm w-full">
+      <div className="h-16 flex items-center justify-between px-4">
         {/* Left section: Mobile menu button */}
-        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-          {isMobile && (
-            <button 
-              onClick={toggleSidebar}
-              className="p-2 text-gray-700 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-            >
-              <MenuIcon size={24} />
-            </button>
-          )}
+        <div className="flex items-center">
+          {/* Mobile menu button */}
+          <button 
+            onClick={toggleSidebar}
+            className="p-2 mr-2 text-gray-700 rounded-md lg:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            aria-label="Toggle sidebar menu"
+          >
+            <MenuIcon size={24} />
+          </button>
         </div>
 
-        {/* Centered Logo */}
-        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+        {/* Center section: Logo */}
+        <div className="flex items-center justify-center absolute left-1/2 transform -translate-x-1/2">
           <img 
             src="/logo.png" 
             alt="Business Options Logo" 
-            className="h-12 w-auto"
+            className="h-10 w-auto"
           />
         </div>
 
-        {/* Right section: Actions */}
-        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center space-x-3">
+        {/* Right section: User profile and notifications */}
+        <div className="flex items-center space-x-3">
+          {/* Dark mode toggle */}
+          <button
+            onClick={toggleDarkMode}
+            className="p-2 text-gray-700 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDarkMode ? (
+              <Sun size={20} className="text-amber-500" />
+            ) : (
+              <Moon size={20} />
+            )}
+          </button>
+
           {/* Notifications */}
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 text-gray-700 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue relative"
+              className="p-2 text-gray-700 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              aria-label="View notifications"
             >
               <Bell size={20} />
               {/* Notification badge */}
               <span className="absolute top-0 right-0 w-2 h-2 bg-error rounded-full"></span>
             </button>
             
-            {/* Notification dropdown (placeholder) */}
+            {/* Notification dropdown */}
             {showNotifications && (
               <div className="absolute right-0 w-80 mt-2 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
                 <div className="py-2 px-4 border-b border-gray-100">
@@ -84,6 +107,7 @@ const Header = ({ toggleSidebar, sidebarOpen, isMobile }) => {
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center text-gray-700 hover:bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              aria-label="Open user menu"
             >
               <div className="w-8 h-8 rounded-full bg-light-blue flex items-center justify-center text-brand-blue font-semibold overflow-hidden">
                 {currentUser?.profileImage?.url ? (

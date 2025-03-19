@@ -6,8 +6,8 @@ import { useAuth } from '../../hooks/useAuth';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const MainLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
-  const [screenWidth, setScreenWidth] = useState(window.innerWidth);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const { currentUser, loading } = useAuth();
   const location = useLocation();
 
@@ -19,72 +19,66 @@ const MainLayout = () => {
   // Handle window resize
   useEffect(() => {
     const handleResize = () => {
-      const width = window.innerWidth;
-      setScreenWidth(width);
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
       
-      // Automatically adjust sidebar for desktop/mobile
-      if (width >= 1024) {
-        setSidebarOpen(true);
-      } else {
+      if (mobile) {
         setSidebarOpen(false);
+      } else if (!document.documentElement.classList.contains('sidebar-toggled')) {
+        setSidebarOpen(true);
       }
     };
+
+    // Set initial state
+    handleResize();
 
     // Add event listener
     window.addEventListener('resize', handleResize);
 
+    // When sidebar is explicitly toggled, add a class to the html element
+    const handleSidebarToggle = () => {
+      document.documentElement.classList.add('sidebar-toggled');
+    };
+
+    document.addEventListener('sidebar-toggled', handleSidebarToggle);
+
     // Clean up
     return () => {
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('sidebar-toggled', handleSidebarToggle);
     };
   }, []);
 
   // Close sidebar when location changes on mobile
   useEffect(() => {
-    if (screenWidth < 1024) {
+    if (isMobile) {
       setSidebarOpen(false);
     }
-  }, [location, screenWidth]);
+  }, [location, isMobile]);
 
   if (loading) {
     return <LoadingSpinner fullScreen />;
   }
 
-  const isMobile = screenWidth < 1024;
-
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-light-blue">
       {/* Sidebar */}
-      <Sidebar 
-        isOpen={sidebarOpen} 
-        toggleSidebar={toggleSidebar} 
-      />
+      <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div 
-        className={`
-          flex flex-col flex-1 overflow-hidden 
-          transition-all duration-300 ease-in-out
-          ${!isMobile && sidebarOpen ? 'ml-64' : 'ml-0'}
-        `}
+        className="flex flex-col flex-1 transition-all duration-300"
+        style={{ 
+          marginLeft: isMobile ? "0" : (sidebarOpen ? "250px" : "64px"),
+          width: isMobile ? "100%" : `calc(100% - ${sidebarOpen ? "250px" : "64px"})`
+        }}
       >
         {/* Header */}
-        <Header 
-          toggleSidebar={toggleSidebar} 
-          sidebarOpen={sidebarOpen} 
-          isMobile={isMobile}
-        />
+        <Header toggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
 
         {/* Page Content */}
-        <main 
-          className="
-            flex-1 overflow-y-auto p-4 md:p-6 
-            w-full 
-            max-w-full
-            mx-auto
-          "
-        >
-          <div className="w-full max-w-screen-2xl mx-auto">
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="mx-auto w-full">
             <Outlet />
           </div>
         </main>
@@ -93,8 +87,9 @@ const MainLayout = () => {
       {/* Mobile sidebar overlay */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50"
+          className="fixed inset-0 z-20 bg-dark-gray bg-opacity-50"
           onClick={toggleSidebar}
+          aria-hidden="true"
         />
       )}
     </div>
