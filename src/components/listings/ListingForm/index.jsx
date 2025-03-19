@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -20,94 +20,141 @@ const STEPS = [
   { id: 'review', label: 'Review & Submit' }
 ];
 
+const DRAFT_STORAGE_KEY = 'listing_form_draft';
+
 const ListingForm = ({ onSubmit, initialData = {} }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [showExitDialog, setShowExitDialog] = useState(false);
-  const [formData, setFormData] = useState({
-    ...initialData
-  });
+  const [formData, setFormData] = useState({});
+  const initialLoadCompleted = useRef(false);
 
   // Set up form with React Hook Form
   const methods = useForm({
     resolver: zodResolver(baseListingSchema),
-    defaultValues: initialData,
+    defaultValues: {},
     mode: 'onChange'
   });
 
-  const { handleSubmit, watch, formState } = methods;
+  const { handleSubmit, reset, formState, watch } = methods;
   const listingType = watch('type');
 
-  // Save form state to localStorage every time it changes
+  // Load saved draft or initial data exactly once when component mounts
   useEffect(() => {
-    const subscription = watch((value) => {
-      localStorage.setItem('listing_form_draft', JSON.stringify({
-        ...formData,
-        ...value
-      }));
-    });
-    return () => subscription.unsubscribe();
-  }, [watch, formData]);
-
-  // Try to load draft from localStorage on initial render
-  useEffect(() => {
-    const savedDraft = localStorage.getItem('listing_form_draft');
-    if (savedDraft && Object.keys(initialData).length === 0) {
-      const parsedDraft = JSON.parse(savedDraft);
-      methods.reset(parsedDraft);
-      setFormData(parsedDraft);
+    if (initialLoadCompleted.current) {
+      return;
     }
-  }, [initialData, methods]);
 
-  const completeStep = async (data) => {
+    // Try to load draft from localStorage
+    const loadFormData = () => {
+      try {
+        // Priority: 1. Initial data from props, 2. Saved draft
+        let dataToLoad = { ...initialData };
+        
+        // Only check localStorage if initial data is empty
+        if (Object.keys(initialData).length === 0) {
+          const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (savedDraft) {
+            const parsedDraft = JSON.parse(savedDraft);
+            dataToLoad = parsedDraft;
+          }
+        }
+        
+        // Update state and reset form
+        setFormData(dataToLoad);
+        reset(dataToLoad);
+        
+        initialLoadCompleted.current = true;
+      } catch (error) {
+        console.error('Error loading form data:', error);
+        
+        // Fallback to initial data or empty object
+        const fallbackData = Object.keys(initialData).length > 0 ? initialData : {};
+        setFormData(fallbackData);
+        reset(fallbackData);
+        
+        // Clear corrupted localStorage
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        initialLoadCompleted.current = true;
+      }
+    };
+
+    loadFormData();
+  }, []); // Empty dependency array - run only once
+
+  // Function to manually save draft
+  const saveDraft = () => {
+    try {
+      const currentValues = methods.getValues();
+      const dataToSave = {
+        ...formData,
+        ...currentValues
+      };
+      
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(dataToSave));
+      setFormData(dataToSave);
+      return true;
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      return false;
+    }
+  };
+
+  // Handle step completion
+  const completeStep = (data) => {
     const updatedData = {
       ...formData,
       ...data
     };
+    
+    // Update form data state
     setFormData(updatedData);
+    
+    // Save draft to localStorage
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(updatedData));
 
     // If we're on the final step, submit the form
     if (currentStep === STEPS.length - 1) {
-      await handleFinalSubmit(updatedData);
+      handleFinalSubmit(updatedData);
     } else {
       // Otherwise, move to the next step
       setCurrentStep(prev => prev + 1);
     }
   };
 
+  // Handle final submission
   const handleFinalSubmit = async (data) => {
-    localStorage.removeItem('listing_form_draft');
-    await onSubmit(data);
+    try {
+      // Clear draft since we're done with the form
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      
+      // Call onSubmit prop with final data
+      await onSubmit(data);
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      // You might want to show an error toast here
+    }
   };
 
+  // Go to previous step
   const goToPreviousStep = () => {
+    // Save current state before going back
+    saveDraft();
     setCurrentStep(prev => Math.max(0, prev - 1));
   };
 
-  const saveDraft = () => {
-    const currentData = methods.getValues();
-    setFormData(prev => ({
-      ...prev,
-      ...currentData
-    }));
-
-    localStorage.setItem('listing_form_draft', JSON.stringify({
-      ...formData,
-      ...currentData
-    }));
-
-    return true;
-  };
-
+  // Handle exit
   const handleExit = () => {
     setShowExitDialog(true);
   };
 
+  // Confirm exit
   const confirmExit = () => {
     saveDraft();
     setShowExitDialog(false);
     // Navigate back - this would be handled by the router in a real implementation
   };
 
+  // Render current step
   const renderStep = () => {
     switch (currentStep) {
       case 0:
@@ -166,7 +213,7 @@ const ListingForm = ({ onSubmit, initialData = {} }) => {
 
         {/* Form Content */}
         <Card className="p-6">
-          <form onSubmit={methods.handleSubmit(completeStep)}>
+          <form onSubmit={handleSubmit(completeStep)}>
             {renderStep()}
 
             {/* Action Buttons */}
