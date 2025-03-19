@@ -1,34 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Menu, 
+  Menu as MenuIcon, 
   Bell, 
-  Search, 
   User, 
   LogOut, 
   Settings, 
-  HelpCircle,
-  Moon,
-  Sun,
-  Menu as MenuIcon
+  HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import UserMenu from './UserMenu';
 
-const Header = ({ toggleSidebar, sidebarOpen }) => {
+const Header = ({ toggleSidebar, sidebarOpen, isMobile }) => {
   const { currentUser, signOut } = useAuth();
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // Handle search form submission
-  const handleSearch = (e) => {
-    e.preventDefault();
-    // Implement search functionality
-    console.log('Search query:', searchQuery);
-  };
 
   // Handle user logout
   const handleLogout = async () => {
@@ -36,75 +22,37 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
     navigate('/login');
   };
 
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-    // Implement dark mode toggle functionality
-  };
-
   return (
     <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
-      <div className="px-4 h-16 flex items-center justify-between">
-        {/* Left section: Logo and mobile menu button */}
-        <div className="flex items-center">
-          {/* Mobile menu button */}
-          <button 
-            onClick={toggleSidebar}
-            className="p-2 mr-2 text-gray-700 rounded-md md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-          >
-            <MenuIcon size={24} />
-          </button>
-
-          {/* Logo */}
-          <div className="flex items-center">
-            <img 
-              src="/logo.svg" 
-              alt="Business Options Logo" 
-              className="h-8 w-auto"
-            />
-            <span className="ml-2 text-lg font-semibold text-brand-blue hidden sm:inline-block">
-              Business Options
-            </span>
-          </div>
+      <div className="px-4 h-16 flex items-center justify-between relative">
+        {/* Left section: Mobile menu button */}
+        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+          {isMobile && (
+            <button 
+              onClick={toggleSidebar}
+              className="p-2 text-gray-700 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            >
+              <MenuIcon size={24} />
+            </button>
+          )}
         </div>
 
-        {/* Center section: Search bar */}
-        <div className="hidden md:flex flex-1 mx-4 max-w-lg">
-          <form onSubmit={handleSearch} className="w-full">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Search size={18} className="text-gray-400" />
-              </div>
-              <input
-                type="search"
-                className="w-full py-2 pl-10 pr-4 text-sm bg-light-blue border border-light-blue rounded-md focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </form>
+        {/* Centered Logo */}
+        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+          <img 
+            src="/logo.png" 
+            alt="Business Options Logo" 
+            className="h-12 w-auto"
+          />
         </div>
 
-        {/* Right section: User profile and notifications */}
-        <div className="flex items-center space-x-3">
-          {/* Dark mode toggle */}
-          <button
-            onClick={toggleDarkMode}
-            className="p-2 text-gray-700 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-          >
-            {isDarkMode ? (
-              <Sun size={20} className="text-amber-500" />
-            ) : (
-              <Moon size={20} />
-            )}
-          </button>
-
+        {/* Right section: Actions */}
+        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center space-x-3">
           {/* Notifications */}
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 text-gray-700 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              className="p-2 text-gray-700 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-blue relative"
             >
               <Bell size={20} />
               {/* Notification badge */}
@@ -199,24 +147,6 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
             )}
           </div>
         </div>
-      </div>
-      
-      {/* Mobile search bar */}
-      <div className="px-4 pb-3 md:hidden">
-        <form onSubmit={handleSearch} className="w-full">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Search size={18} className="text-gray-400" />
-            </div>
-            <input
-              type="search"
-              className="w-full py-2 pl-10 pr-4 text-sm bg-light-blue border border-light-blue rounded-md focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </form>
       </div>
     </header>
   );

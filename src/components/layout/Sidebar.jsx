@@ -156,17 +156,29 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   return (
     <aside 
-      className={`fixed inset-y-0 left-0 z-30 flex flex-col flex-shrink-0 pt-16 bg-brand-blue text-white shadow-lg transition-all duration-300 ${
+      className={`fixed inset-y-0 left-0 z-30 flex flex-col flex-shrink-0 bg-brand-blue text-white shadow-lg transition-all duration-300 ${
         isOpen ? 'w-64' : 'w-16'
       }`}
     >
-      {/* Collapse button (visible on desktop) */}
-      <button 
-        className="absolute top-2 -right-3 w-6 h-6 bg-white text-brand-blue rounded-full flex items-center justify-center border border-light-blue shadow-md cursor-pointer hidden md:flex"
-        onClick={toggleSidebar}
-      >
-        {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-      </button>
+      {/* Logo Area with White Background */}
+      <div className="h-16 bg-white flex items-center justify-center relative">
+        {/* Centered Logo */}
+        <img 
+          src="/logo.svg" 
+          alt="Business Options Logo" 
+          className={`h-10 w-auto transition-all duration-300 ${
+            isOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+
+        {/* Collapse button (visible on desktop) */}
+        <button 
+          className="absolute top-1/2 -right-3 transform -translate-y-1/2 w-6 h-6 bg-white text-brand-blue rounded-full flex items-center justify-center border border-light-blue shadow-md cursor-pointer hidden md:flex"
+          onClick={toggleSidebar}
+        >
+          {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+        </button>
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto">

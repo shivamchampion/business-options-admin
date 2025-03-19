@@ -6,8 +6,8 @@ import { useAuth } from '../../hooks/useAuth';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const MainLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
+  const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const { currentUser, loading } = useAuth();
   const location = useLocation();
 
@@ -20,19 +20,15 @@ const MainLayout = () => {
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
+      setScreenWidth(width);
       
-      // Determine mobile view
-      if (width < 1024) {
-        setIsMobile(true);
-        setSidebarOpen(false);
-      } else {
-        setIsMobile(false);
+      // Automatically adjust sidebar for desktop/mobile
+      if (width >= 1024) {
         setSidebarOpen(true);
+      } else {
+        setSidebarOpen(false);
       }
     };
-
-    // Initial check
-    handleResize();
 
     // Add event listener
     window.addEventListener('resize', handleResize);
@@ -45,14 +41,16 @@ const MainLayout = () => {
 
   // Close sidebar when location changes on mobile
   useEffect(() => {
-    if (isMobile) {
+    if (screenWidth < 1024) {
       setSidebarOpen(false);
     }
-  }, [location, isMobile]);
+  }, [location, screenWidth]);
 
   if (loading) {
     return <LoadingSpinner fullScreen />;
   }
+
+  const isMobile = screenWidth < 1024;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
@@ -60,11 +58,16 @@ const MainLayout = () => {
       <Sidebar 
         isOpen={sidebarOpen} 
         toggleSidebar={toggleSidebar} 
-        isMobile={isMobile} 
       />
 
       {/* Main Content Area */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div 
+        className={`
+          flex flex-col flex-1 overflow-hidden 
+          transition-all duration-300 ease-in-out
+          ${!isMobile && sidebarOpen ? 'ml-64' : 'ml-0'}
+        `}
+      >
         {/* Header */}
         <Header 
           toggleSidebar={toggleSidebar} 
@@ -74,11 +77,12 @@ const MainLayout = () => {
 
         {/* Page Content */}
         <main 
-          className={`
+          className="
             flex-1 overflow-y-auto p-4 md:p-6 
-            transition-all duration-300 ease-in-out
-            ${sidebarOpen && !isMobile ? 'ml-64' : 'ml-0'}
-          `}
+            w-full 
+            max-w-full
+            mx-auto
+          "
         >
           <div className="w-full max-w-screen-2xl mx-auto">
             <Outlet />
