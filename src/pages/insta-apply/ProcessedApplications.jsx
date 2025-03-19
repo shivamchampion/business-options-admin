@@ -3,7 +3,7 @@ import { useQuery } from 'react-query';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Filter, Search, Sliders } from 'lucide-react';
 
 // Components
-import PageHeader from '../../components/common/PageHeader';
+import PageHeader from '../../components/layout/PageHeader'
 import Card from '../../components/ui/Card';
 import ApplicationCard from '../../components/insta-apply/ApplicationCard';
 // import Pagination from '../../components/common/Pagination';

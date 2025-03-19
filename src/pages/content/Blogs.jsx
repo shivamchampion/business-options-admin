@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Search, Edit, Trash2, Eye, Calendar, Filter, Tag, UserCircle, ArrowUp, ArrowDown } from 'lucide-react';
 
 // Components
-import PageHeader from '../../components/common/PageHeader';
+import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 // import Pagination from '../../components/common/Pagination';

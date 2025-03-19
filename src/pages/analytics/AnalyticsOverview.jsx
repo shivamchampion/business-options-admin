@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Users, Building, DollarSign, BarChart2, Calendar } from 'lucide-react';
 
 // Components
-import PageHeader from '../../components/common/PageHeader';
+import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 
 const AnalyticsOverview = () => {

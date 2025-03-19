@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Search, AlertTriangle, Info, Check, RefreshCw, Download, Filter } from 'lucide-react';
 
 // Components
-import PageHeader from '../../components/common/PageHeader';
+import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Save, Mail, Edit, Clipboard, Check, Clock, ArrowUpDown, Tag, Plus, Trash2 } from 'lucide-react';
 
 // Components
-import PageHeader from '../../components/common/PageHeader';
+import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 

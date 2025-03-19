@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, Download, Users, ArrowUpRight, UserPlus, UserCheck, UserX } from 'lucide-react';
 
 // Components
-import PageHeader from '../../components/common/PageHeader';
+import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 
