@@ -1,0 +1,248 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+
+    --primary: 217 100% 33.7%;   /* Brand Blue: #0031AC */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 95.1%;  /* Light Blue: #E6EEFF */
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    --ring: 215 20.2% 65.1%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 215 20.2% 65.1%;
+
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 1.2%;
+
+    --secondary: 222.2 47.4% 11.2%;
+    --secondary-foreground: 210 40% 98%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --ring: 216 34% 17%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
+  h1 {
+    @apply text-h1;
+  }
+  h2 {
+    @apply text-h2;
+  }
+  h3 {
+    @apply text-h3;
+  }
+  h4 {
+    @apply text-h4;
+  }
+}
+
+@layer components {
+  /* Custom card styling */
+  .card {
+    @apply bg-white rounded-lg shadow-card p-4;
+  }
+  
+  .card-highlight {
+    @apply border-t-4 border-brand-blue;
+  }
+  
+  /* Status badges */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-badge-success {
+    @apply bg-success bg-opacity-10 text-success;
+  }
+  
+  .status-badge-warning {
+    @apply bg-warning bg-opacity-10 text-warning;
+  }
+  
+  .status-badge-error {
+    @apply bg-error bg-opacity-10 text-error;
+  }
+  
+  .status-badge-info {
+    @apply bg-brand-blue bg-opacity-10 text-brand-blue;
+  }
+  
+  .status-badge-neutral {
+    @apply bg-text-gray bg-opacity-10 text-text-gray;
+  }
+  
+  /* Form layouts */
+  .form-container {
+    @apply space-y-6;
+  }
+  
+  .form-section {
+    @apply bg-white rounded-lg shadow-card p-6;
+  }
+  
+  .form-section-title {
+    @apply text-h3 font-semibold mb-4 pb-2 border-b border-gray-200;
+  }
+  
+  .form-group {
+    @apply mb-4;
+  }
+  
+  .form-label {
+    @apply block text-sm font-medium text-dark-gray mb-1;
+  }
+  
+  .form-helper-text {
+    @apply mt-1 text-xs text-text-gray;
+  }
+  
+  .form-error {
+    @apply mt-1 text-xs text-error;
+  }
+  
+  /* Table styles */
+  .data-table {
+    @apply w-full text-sm text-left text-dark-gray;
+  }
+  
+  .data-table-header {
+    @apply text-xs uppercase bg-light-blue text-text-gray font-medium;
+  }
+  
+  .data-table-header th {
+    @apply py-3 px-4;
+  }
+  
+  .data-table-row {
+    @apply bg-white border-b border-gray-100;
+  }
+  
+  .data-table-row:hover {
+    @apply bg-light-blue bg-opacity-50;
+  }
+  
+  .data-table-row td {
+    @apply py-3 px-4;
+  }
+  
+  /* Stepper for multi-step forms */
+  .stepper {
+    @apply flex items-center w-full mb-6;
+  }
+  
+  .step {
+    @apply flex items-center justify-center relative flex-1;
+  }
+  
+  .step-line {
+    @apply absolute h-0.5 w-full bg-gray-200 top-1/2 transform -translate-y-1/2 left-0;
+  }
+  
+  .step:first-child .step-line {
+    @apply w-1/2 ml-auto;
+  }
+  
+  .step:last-child .step-line {
+    @apply w-1/2;
+  }
+  
+  .step-circle {
+    @apply w-8 h-8 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center z-10 text-sm font-medium text-text-gray;
+  }
+  
+  .step-active .step-circle {
+    @apply bg-brand-blue border-brand-blue text-white;
+  }
+  
+  .step-completed .step-circle {
+    @apply bg-success border-success text-white;
+  }
+  
+  .step-active .step-line, .step-completed .step-line {
+    @apply bg-brand-blue;
+  }
+  
+  .step-label {
+    @apply absolute mt-10 text-xs font-medium text-center w-full;
+  }
+  
+  .step-active .step-label {
+    @apply text-brand-blue;
+  }
+  
+  /* Empty state */
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-12 px-4 text-center;
+  }
+  
+  .empty-state-icon {
+    @apply mb-4 text-gray-300;
+  }
+  
+  .empty-state-title {
+    @apply text-h4 font-medium text-dark-gray mb-2;
+  }
+  
+  .empty-state-description {
+    @apply text-text-gray max-w-md mx-auto mb-6;
+  }
+}
