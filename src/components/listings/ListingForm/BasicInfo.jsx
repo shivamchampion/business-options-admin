@@ -1,19 +1,34 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { MultiSelect } from '@/components/common/MultiSelect';
 import { LISTING_TYPES, INDUSTRIES, PLANS, COUNTRIES, STATES_BY_COUNTRY } from '@/utils/constants';
 
 const BasicInfo = () => {
-  const { control, watch } = useFormContext();
-  const selectedCountry = watch('location.country');
+  const { control, watch, setValue, formState: { errors } } = useFormContext();
+  
+  // Watch for key fields
+  const selectedCountry = watch('location.country') || 'India';
   const listingType = watch('type');
+  
+  // Debug logging
+  console.log('Form values:', {
+    type: listingType,
+    typeIsObject: typeof listingType === 'object',
+    selectedCountry
+  });
+  
+  // Fix if type is stored as an object
+  useEffect(() => {
+    if (listingType && typeof listingType === 'object' && listingType.value) {
+      console.log('Converting type from object to string:', listingType.value);
+      setValue('type', listingType.value);
+    }
+  }, [listingType, setValue]);
   
   return (
     <div className="space-y-8">
@@ -36,31 +51,29 @@ const BasicInfo = () => {
             name="type"
             render={({ field }) => (
               <FormItem className="space-y-3">
-                <FormLabel required>Listing Type</FormLabel>
+                <FormLabel>
+                  Listing Type <span className="text-red-500">*</span>
+                </FormLabel>
                 <FormControl>
-                  <RadioGroup 
-                    onValueChange={field.onChange} 
-                    defaultValue={field.value}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-4"
-                  >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {LISTING_TYPES.map((type) => (
-                      <FormItem key={type.value} className="relative"> {/* Ensure key is a string */}
-                        <RadioGroupItem
-                          value={type.value}
-                          id={type.value}
-                          className="peer sr-only"
-                        />
-                        <Label
-                          htmlFor={type.value}
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-4 hover:bg-gray-50 hover:border-gray-300 peer-data-[state=checked]:border-blue-600 peer-data-[state=checked]:bg-blue-50 [&:has([data-state=checked])]:border-blue-600"
-                        >
+                      <div 
+                        key={type.value} 
+                        className={`border-2 rounded-md p-4 cursor-pointer transition-all ${
+                          field.value === type.value 
+                            ? 'border-blue-600 bg-blue-50' 
+                            : 'border-gray-200 hover:bg-gray-50'
+                        }`}
+                        onClick={() => field.onChange(type.value)}
+                      >
+                        <div className="flex flex-col items-center text-center">
                           <span className="text-2xl mb-2">{type.icon}</span>
                           <span className="font-medium">{type.label}</span>
-                          <span className="text-xs text-gray-500 mt-1 text-center">{type.description}</span>
-                        </Label>
-                      </FormItem>
+                          <span className="text-xs text-gray-500 mt-1">{type.description}</span>
+                        </div>
+                      </div>
                     ))}
-                  </RadioGroup>
+                  </div>
                 </FormControl>
                 <FormDescription>
                   This determines the specific information we'll collect for your listing
@@ -76,9 +89,14 @@ const BasicInfo = () => {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel required>Listing Name</FormLabel>
+                <FormLabel>
+                  Listing Name <span className="text-red-500">*</span>
+                </FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter the name of your listing" {...field} />
+                  <Input 
+                    placeholder="Enter the name of your listing" 
+                    {...field} 
+                  />
                 </FormControl>
                 <FormDescription>
                   This will be the main title displayed for your listing (3-100 characters)
@@ -94,12 +112,16 @@ const BasicInfo = () => {
             name="industries"
             render={({ field }) => (
               <FormItem>
-                <FormLabel required>Industries</FormLabel>
+                <FormLabel>
+                  Industries <span className="text-red-500">*</span>
+                </FormLabel>
                 <FormControl>
                   <MultiSelect
                     options={INDUSTRIES}
-                    value={field.value || []}
-                    onChange={field.onChange}
+                    value={Array.isArray(field.value) ? field.value : []}
+                    onChange={(newValue) => {
+                      field.onChange(newValue);
+                    }}
                     placeholder="Select up to 3 industries"
                     maxSelected={3}
                   />
@@ -118,7 +140,9 @@ const BasicInfo = () => {
             name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel required>Description</FormLabel>
+                <FormLabel>
+                  Description <span className="text-red-500">*</span>
+                </FormLabel>
                 <FormControl>
                   <Textarea 
                     placeholder="Provide a comprehensive overview of your listing" 
@@ -155,21 +179,26 @@ const BasicInfo = () => {
             name="plan"
             render={({ field }) => (
               <FormItem>
-                <FormLabel required>Plan Type</FormLabel>
-                <FormControl>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormLabel>
+                  Plan Type <span className="text-red-500">*</span>
+                </FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  value={field.value || ""}
+                >
+                  <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select your plan" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {PLANS.map((plan) => (
-                        <SelectItem key={plan.value} value={plan.value}>
-                          {plan.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
+                  </FormControl>
+                  <SelectContent>
+                    {PLANS.map((plan) => (
+                      <SelectItem key={plan.value} value={plan.value}>
+                        {plan.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormDescription>
                   Determines visibility level and premium features
                 </FormDescription>
@@ -184,21 +213,31 @@ const BasicInfo = () => {
             name="location.country"
             render={({ field }) => (
               <FormItem>
-                <FormLabel required>Country</FormLabel>
-                <FormControl>
-                  <Select onValueChange={field.onChange} defaultValue={field.value || 'India'}>
+                <FormLabel>
+                  Country <span className="text-red-500">*</span>
+                </FormLabel>
+                <Select 
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    // Clear state when country changes
+                    setValue('location.state', '');
+                  }} 
+                  value={field.value || 'India'}
+                  defaultValue="India"
+                >
+                  <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a country" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRIES.map((country) => (
-                        <SelectItem key={country.value} value={country.value}>
-                          {country.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
+                  </FormControl>
+                  <SelectContent>
+                    {COUNTRIES.map((country) => (
+                      <SelectItem key={country.value} value={country.value}>
+                        {country.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -212,21 +251,26 @@ const BasicInfo = () => {
               name="location.state"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel required>State</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>
+                    State <span className="text-red-500">*</span>
+                  </FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value || ""}
+                  >
+                    <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a state" />
                       </SelectTrigger>
-                      <SelectContent>
-                        {(STATES_BY_COUNTRY[selectedCountry] || []).map((state) => (
-                          <SelectItem key={state.value} value={state.value}>
-                            {state.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
+                    </FormControl>
+                    <SelectContent>
+                      {(STATES_BY_COUNTRY[selectedCountry] || []).map((state) => (
+                        <SelectItem key={state.value} value={state.value}>
+                          {state.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -238,7 +282,9 @@ const BasicInfo = () => {
               name="location.city"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel required>City</FormLabel>
+                  <FormLabel>
+                    City <span className="text-red-500">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="Enter city" {...field} />
                   </FormControl>
@@ -296,7 +342,9 @@ const BasicInfo = () => {
               name="contactInfo.email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel required>Contact Email</FormLabel>
+                  <FormLabel>
+                    Contact Email <span className="text-red-500">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input type="email" placeholder="Enter email address" {...field} />
                   </FormControl>
@@ -358,18 +406,21 @@ const BasicInfo = () => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Preferred Contact Method</FormLabel>
-                <FormControl>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                <Select 
+                  onValueChange={field.onChange} 
+                  value={field.value || ""}
+                >
+                  <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select preferred contact method" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="phone">Phone</SelectItem>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormControl>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="phone">Phone</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
