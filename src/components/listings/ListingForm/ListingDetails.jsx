@@ -1,67 +1,72 @@
-import React from 'react';
+import { useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
-import BusinessForm from '../business/BusinessForm';
-import FranchiseForm from '../franchise/FranchiseForm';
-import StartupForm from '../startup/StartupForm';
-import InvestorForm from '../investor/InvestorForm';
-import DigitalAssetForm from '../digital-asset/DigitalAssetForm';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
+import BusinessForm from '@/components/listings/business/BusinessForm';
+import FranchiseForm from '@/components/listings/franchise/FranchiseForm';
+import StartupForm from '@/components/listings/startup/StartupForm';
+import InvestorForm from '@/components/listings/investor/InvestorForm';
+import DigitalAssetForm from '@/components/listings/digital-asset/DigitalAssetForm';
 
-const ListingDetails = ({ listingType }) => {
-  const { formState } = useFormContext();
+const ListingDetails = () => {
+  const { watch, formState: { errors } } = useFormContext();
+  const listingType = watch('type');
+  
+  // Scroll to error if there's any in this step
+  useEffect(() => {
+    if (Object.keys(errors).some(key => key.includes('Details'))) {
+      // Find the first error element and scroll to it
+      const firstErrorKey = Object.keys(errors).find(key => key.includes('Details'));
+      const errorField = document.querySelector(`[name="${firstErrorKey}"]`);
+      
+      if (errorField) {
+        errorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        errorField.focus({ preventScroll: true });
+      }
+    }
+  }, [errors]);
   
   if (!listingType) {
     return (
-      <div className="p-8 text-center">
-        <h2 className="text-xl font-medium text-gray-600">Please select a listing type in the Basic Info step</h2>
-        <p className="mt-2 text-gray-500">The details form will be customized based on your selection.</p>
-      </div>
+      <Alert variant="destructive" className="my-6">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          Please select a listing type in the Basic Info step before proceeding.
+        </AlertDescription>
+      </Alert>
     );
   }
   
+  // Render the appropriate form based on listing type
+  const renderForm = () => {
+    switch (listingType) {
+      case 'business':
+        return <BusinessForm />;
+      case 'franchise':
+        return <FranchiseForm />;
+      case 'startup':
+        return <StartupForm />;
+      case 'investor':
+        return <InvestorForm />;
+      case 'digital_asset':
+        return <DigitalAssetForm />;
+      default:
+        return (
+          <Alert variant="destructive" className="my-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Invalid listing type selected. Please go back and select a valid listing type.
+            </AlertDescription>
+          </Alert>
+        );
+    }
+  };
+  
   return (
-    <div className="space-y-8">
-      <div className="text-lg font-semibold">Step 3: {getListingTypeLabel(listingType)} Details</div>
-      <p className="text-gray-600">
-        Please provide specific information about your {getListingTypeLabel(listingType).toLowerCase()}.
-      </p>
-      
-      {renderForm(listingType)}
+    <div className="space-y-6">
+      {renderForm()}
     </div>
   );
-};
-
-const renderForm = (listingType) => {
-  switch (listingType) {
-    case 'business':
-      return <BusinessForm />;
-    case 'franchise':
-      return <FranchiseForm />;
-    case 'startup':
-      return <StartupForm />;
-    case 'investor':
-      return <InvestorForm />;
-    case 'digital_asset':
-      return <DigitalAssetForm />;
-    default:
-      return null;
-  }
-};
-
-const getListingTypeLabel = (type) => {
-  switch (type) {
-    case 'business':
-      return 'Business';
-    case 'franchise':
-      return 'Franchise';
-    case 'startup':
-      return 'Startup';
-    case 'investor':
-      return 'Investor';
-    case 'digital_asset':
-      return 'Digital Asset';
-    default:
-      return 'Listing';
-  }
 };
 
 export default ListingDetails;

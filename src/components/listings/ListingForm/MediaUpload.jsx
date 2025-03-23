@@ -1,393 +1,493 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
 import { useDropzone } from 'react-dropzone';
-import { Toast } from '@/components/ui/use-toast';
-import { uploadImage, deleteImage } from '@/services/storage';
-import { v4 as uuidv4 } from 'uuid';
+import { X, Upload, Image as ImageIcon, Loader2, AlertCircle, Info, Star, StarIcon } from 'lucide-react';
+import { 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormControl, 
+  FormDescription, 
+  FormMessage 
+} from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Progress } from '@/components/ui/progress';
+import { uploadListingImage, deleteListingImage } from '@/services/storage';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+// File size limit: 5MB in bytes
+const FILE_SIZE_LIMIT = 5 * 1024 * 1024;
 const MIN_IMAGES = 3;
 const MAX_IMAGES = 10;
+const MIN_WIDTH = 800;
+const MIN_HEIGHT = 600;
 
 const MediaUpload = () => {
-  const { control, setValue, watch } = useFormContext();
+  const { control, setValue, watch, formState: { errors } } = useFormContext();
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState(null);
+  const [isValidating, setIsValidating] = useState(false);
   
-  const galleryImages = watch('media.galleryImages') || [];
-  const featuredImage = watch('media.featuredImage');
+  // Watch for media values from form state
+  const formMedia = watch('media') || {};
+  const galleryImages = formMedia.galleryImages || [];
+  const featuredImage = formMedia.featuredImage || null;
   
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({});
-  const [draggedIndex, setDraggedIndex] = useState(null);
+  // Check if we have the minimum required images
+  const hasMinimumImages = galleryImages.length >= MIN_IMAGES;
   
-  const onDrop = async (acceptedFiles, rejectedFiles) => {
-    // Handle rejected files
-    if (rejectedFiles.length > 0) {
-      rejectedFiles.forEach(file => {
-        if (file.errors.some(e => e.code === 'file-too-large')) {
-          Toast({
-            title: "File too large",
-            description: `${file.file.name} exceeds the 5MB limit.`,
-            variant: "destructive",
-          });
-        } else if (file.errors.some(e => e.code === 'file-invalid-type')) {
-          Toast({
-            title: "Invalid file type",
-            description: `${file.file.name} is not a valid image file.`,
-            variant: "destructive",
-          });
-        }
-      });
-    }
+  // Handle file drop
+  const onDrop = useCallback(async (acceptedFiles) => {
+    // Reset error state
+    setUploadError(null);
     
-    // Check if adding new files would exceed the maximum
+    // Validate number of images
     if (galleryImages.length + acceptedFiles.length > MAX_IMAGES) {
-      Toast({
-        title: "Too many images",
-        description: `You can upload a maximum of ${MAX_IMAGES} images.`,
-        variant: "destructive",
-      });
-      
-      // Only accept files up to the maximum
-      acceptedFiles = acceptedFiles.slice(0, MAX_IMAGES - galleryImages.length);
+      setUploadError(`You can upload a maximum of ${MAX_IMAGES} images. Please remove some images before uploading more.`);
+      return;
     }
     
-    if (acceptedFiles.length === 0) return;
-    
-    setUploading(true);
-    const newProgress = { ...uploadProgress };
-    const newImages = [...galleryImages];
-    
-    for (let i = 0; i < acceptedFiles.length; i++) {
-      const file = acceptedFiles[i];
-      const id = uuidv4();
-      newProgress[id] = 0;
+    // Process each file
+    for (const file of acceptedFiles) {
+      // Check file size
+      if (file.size > FILE_SIZE_LIMIT) {
+        setUploadError(`File ${file.name} exceeds the 5MB size limit.`);
+        continue;
+      }
       
-      setUploadProgress(newProgress);
+      // Validate image dimensions
+      setIsValidating(true);
+      try {
+        const dimensions = await getImageDimensions(file);
+        if (dimensions.width < MIN_WIDTH || dimensions.height < MIN_HEIGHT) {
+          setUploadError(`Image ${file.name} is too small. Minimum dimensions are ${MIN_WIDTH}x${MIN_HEIGHT}px.`);
+          setIsValidating(false);
+          continue;
+        }
+      } catch (error) {
+        setUploadError(`Failed to validate image dimensions for ${file.name}.`);
+        setIsValidating(false);
+        continue;
+      }
+      setIsValidating(false);
+      
+      // Begin upload
+      setIsUploading(true);
+      setUploadProgress(0);
       
       try {
         // Upload to Firebase Storage
-        const { url, path } = await uploadImage(
-          file,
-          'listings',
-          (progress) => {
-            setUploadProgress(prev => ({
-              ...prev,
-              [id]: progress
-            }));
-          }
-        );
-        
-        // Add to form state
-        newImages.push({
-          id,
-          url,
-          path,
-          alt: file.name,
+        const imageData = await uploadListingImage(file, (progress) => {
+          setUploadProgress(progress);
         });
         
-        // If this is the first image, set it as featured
+        // Update form state with new image
+        const newImages = [...galleryImages, imageData];
+        setValue('media.galleryImages', newImages);
+        setValue('media.totalImages', newImages.length);
+        
+        // If this is the first image, set it as the featured image
         if (newImages.length === 1 || !featuredImage) {
-          setValue('media.featuredImage', {
-            url,
-            path,
-            alt: file.name,
-          }, { shouldValidate: true });
+          setValue('media.featuredImage', imageData);
         }
       } catch (error) {
-        console.error('Error uploading image:', error);
-        Toast({
-          title: "Upload failed",
-          description: `Failed to upload ${file.name}.`,
-          variant: "destructive",
-        });
+        console.error('Upload error:', error);
+        setUploadError(`Failed to upload ${file.name}: ${error.message}`);
+      } finally {
+        setIsUploading(false);
       }
-      
-      // Remove from progress tracking
-      delete newProgress[id];
     }
-    
-    setValue('media.galleryImages', newImages, { shouldValidate: true });
-    setUploadProgress(newProgress);
-    setUploading(false);
-  };
+  }, [galleryImages, featuredImage, setValue]);
   
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  // Configure dropzone
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
       'image/jpeg': [],
-      'image/png': [],
-      'image/webp': [],
+      'image/png': []
     },
-    maxSize: MAX_FILE_SIZE,
-    disabled: uploading || galleryImages.length >= MAX_IMAGES,
+    disabled: isUploading || isValidating,
+    maxSize: FILE_SIZE_LIMIT,
+    multiple: true,
   });
   
-  const handleRemoveImage = async (index) => {
-    const imageToRemove = galleryImages[index];
-    const newImages = [...galleryImages];
-    newImages.splice(index, 1);
-    
-    try {
-      // Delete from storage
-      await deleteImage(imageToRemove.path);
-      
-      // Update form state
-      setValue('media.galleryImages', newImages, { shouldValidate: true });
-      
-      // If the removed image was the featured image, set a new one
-      if (featuredImage && featuredImage.path === imageToRemove.path) {
-        setValue('media.featuredImage', newImages.length > 0 ? newImages[0] : null, { shouldValidate: true });
-      }
-      
-      Toast({
-        title: "Image removed",
-        variant: "success",
-      });
-    } catch (error) {
-      console.error('Error removing image:', error);
-      Toast({
-        title: "Removal failed",
-        description: "Could not delete the image. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-  
-  const handleSetFeatured = (index) => {
-    setValue('media.featuredImage', galleryImages[index], { shouldValidate: true });
-    
-    Toast({
-      title: "Featured image updated",
-      variant: "success",
+  // Helper function to get image dimensions
+  const getImageDimensions = (file) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        resolve({ width: img.width, height: img.height });
+      };
+      img.onerror = () => {
+        reject(new Error('Failed to load image'));
+      };
+      img.src = URL.createObjectURL(file);
     });
   };
   
-  const handleDragStart = (e, index) => {
-    setDraggedIndex(index);
-    // Make the ghost image transparent
-    const img = new Image();
-    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    e.dataTransfer.setDragImage(img, 0, 0);
+  // Handle removing an image
+  const handleRemoveImage = async (index) => {
+    // Don't allow removing if it would result in less than minimum images
+    if (galleryImages.length <= MIN_IMAGES) {
+      setUploadError(`You must have at least ${MIN_IMAGES} images.`);
+      return;
+    }
+    
+    const imageToRemove = galleryImages[index];
+    
+    try {
+      // Remove from Firebase Storage
+      await deleteListingImage(imageToRemove.path);
+      
+      // Update form state
+      const newImages = galleryImages.filter((_, i) => i !== index);
+      setValue('media.galleryImages', newImages);
+      setValue('media.totalImages', newImages.length);
+      
+      // If removed image was featured, set first available image as featured
+      if (featuredImage && featuredImage.url === imageToRemove.url) {
+        setValue('media.featuredImage', newImages.length > 0 ? newImages[0] : null);
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      setUploadError(`Failed to delete image: ${error.message}`);
+    }
   };
   
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    if (draggedIndex === index) return;
-    
-    const newImages = [...galleryImages];
-    const draggedImage = newImages[draggedIndex];
-    
-    newImages.splice(draggedIndex, 1);
-    newImages.splice(index, 0, draggedImage);
-    
-    setValue('media.galleryImages', newImages, { shouldValidate: true });
-    setDraggedIndex(index);
-  };
-  
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
+  // Set an image as the featured image
+  const setAsFeatured = (index) => {
+    setValue('media.featuredImage', galleryImages[index]);
   };
   
   return (
     <div className="space-y-8">
-      <div className="text-lg font-semibold">Step 2: Media Upload</div>
-      <p className="text-gray-600">
-        Upload images for your listing. Add at least 3 high-quality images to showcase your offering.
-      </p>
-      
+      {/* Image Requirements */}
       <Card>
         <CardHeader>
-          <CardTitle>Upload Images</CardTitle>
-          <CardDescription>
-            Add photos that highlight the key features of your listing. First image will be used as the featured image.
-          </CardDescription>
+          <CardTitle className="text-lg font-medium">Image Requirements</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <Alert>
-            <AlertTitle>Image Requirements</AlertTitle>
-            <AlertDescription>
-              <ul className="list-disc pl-5 mt-2 text-sm">
-                <li>Minimum 3, maximum 10 images</li>
-                <li>File types: JPEG, PNG or WebP</li>
-                <li>Maximum 5MB per image</li>
-                <li>Minimum resolution: 800x600 pixels</li>
-                <li>Recommended aspect ratio: 4:3 or 16:9</li>
-              </ul>
-            </AlertDescription>
-          </Alert>
-          
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-blue-100 p-2 mt-1">
+                <ImageIcon className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Image Formats</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  JPEG or PNG files only
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-blue-100 p-2 mt-1">
+                <ImageIcon className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Size Limits</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Maximum 5MB per image
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-blue-100 p-2 mt-1">
+                <ImageIcon className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Dimensions</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Minimum 800x600 pixels
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-blue-100 p-2 mt-1">
+                <ImageIcon className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Quantity</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {MIN_IMAGES} to {MAX_IMAGES} images required
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-blue-100 p-2 mt-1">
+                <ImageIcon className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Featured Image</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Select one image as your main display image
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-blue-100 p-2 mt-1">
+                <ImageIcon className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Quality</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Clear, high-quality images perform better
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Upload Area */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-lg font-medium">Upload Images</CardTitle>
+            <div className="text-sm text-muted-foreground">
+              {galleryImages.length}/{MAX_IMAGES} images
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
           <FormField
             control={control}
             name="media.galleryImages"
             render={({ field }) => (
               <FormItem>
-                <FormLabel required>Gallery Images</FormLabel>
-                
-                {/* Upload Area */}
-                <div
-                  {...getRootProps()}
-                  className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-colors
-                    ${isDragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-300'}
-                    ${uploading || galleryImages.length >= MAX_IMAGES ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <input {...getInputProps()} />
-                  <div className="flex flex-col items-center justify-center space-y-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <div className="text-lg font-medium">Drag and drop images here</div>
-                    <div className="text-sm text-gray-500">or click to browse files</div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <FormLabel>Gallery Images</FormLabel>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm">
+                        <p>Upload at least {MIN_IMAGES} high-quality images to showcase your listing. Clear, professional images increase engagement.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
                 
-                {/* Status Information */}
-                <div className="mt-2 flex items-center justify-between">
-                  <FormDescription>
-                    {galleryImages.length} of {MAX_IMAGES} images uploaded
-                  </FormDescription>
-                  
-                  {galleryImages.length < MIN_IMAGES && (
-                    <div className="text-sm text-red-500">
-                      At least {MIN_IMAGES} images are required
+                {/* Error messages */}
+                {uploadError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{uploadError}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <FormControl>
+                  <div 
+                    {...getRootProps()} 
+                    className={`
+                      border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
+                      ${isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300'}
+                      ${isUploading || isValidating ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary hover:bg-primary/5'}
+                    `}
+                  >
+                    <input {...getInputProps()} />
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="rounded-full bg-primary/10 p-3">
+                        <Upload className="h-6 w-6 text-primary" />
+                      </div>
+                      
+                      {isUploading ? (
+                        <div className="space-y-2 w-full max-w-xs mx-auto">
+                          <p className="text-sm font-medium">Uploading...</p>
+                          <Progress value={uploadProgress} className="h-2 w-full" />
+                          <p className="text-xs text-muted-foreground">{uploadProgress}% complete</p>
+                        </div>
+                      ) : isValidating ? (
+                        <div className="flex items-center space-x-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <p className="text-sm font-medium">Validating image dimensions...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium">Drag & drop images here</p>
+                            <p className="text-xs text-muted-foreground">Or click to browse from your device</p>
+                          </div>
+                          
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={open}
+                            disabled={isUploading || galleryImages.length >= MAX_IMAGES}
+                          >
+                            Select Images
+                          </Button>
+                        </>
+                      )}
                     </div>
-                  )}
+                  </div>
+                </FormControl>
+                
+                <div className="flex justify-between mt-2">
+                  <FormDescription>
+                    Upload {MIN_IMAGES}-{MAX_IMAGES} images in JPEG or PNG format.
+                  </FormDescription>
+                  <div className={`text-sm ${hasMinimumImages ? 'text-green-600' : 'text-amber-600'}`}>
+                    {hasMinimumImages ? (
+                      <span className="flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4" />
+                        Minimum requirement met
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        At least {MIN_IMAGES} images required
+                      </span>
+                    )}
+                  </div>
                 </div>
                 
                 <FormMessage />
               </FormItem>
             )}
           />
-          
-          {/* Upload Progress */}
-          {Object.keys(uploadProgress).length > 0 && (
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Uploading images...</div>
-              {Object.entries(uploadProgress).map(([id, progress]) => (
-                <div key={id} className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span>Uploading image...</span>
-                    <span>{Math.round(progress)}%</span>
-                  </div>
-                  <Progress value={progress} />
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {/* Image Gallery */}
-          {galleryImages.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-sm font-medium mb-3">Uploaded Images</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {galleryImages.map((image, index) => (
-                  <div 
-                    key={image.id || index}
-                    className={`relative group border rounded-md overflow-hidden
-                      ${featuredImage && featuredImage.path === image.path ? 'ring-2 ring-blue-500' : ''}
-                      ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <img 
-                      src={image.url} 
-                      alt={image.alt || `Image ${index + 1}`}
-                      className="w-full h-40 object-cover"
-                    />
-                    
-                    {/* Badge for featured image */}
-                    {featuredImage && featuredImage.path === image.path && (
-                      <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs py-1 px-2 rounded-full">
-                        Featured
-                      </div>
-                    )}
-                    
-                    {/* Image Actions */}
-                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="flex space-x-2">
-                        {/* Set as Featured */}
-                        {(!featuredImage || featuredImage.path !== image.path) && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleSetFeatured(index)}
-                          >
-                            Set Featured
-                          </Button>
-                        )}
-                        
-                        {/* Remove */}
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleRemoveImage(index)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    {/* Drag Handle */}
-                    <div className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full w-6 h-6 flex items-center justify-center cursor-move">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                      </svg>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mt-4 text-sm text-gray-500">
-                <p>Drag and drop images to reorder. Set one image as featured.</p>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
       
-      <Card>
-        <CardHeader>
-          <CardTitle>Image Descriptions</CardTitle>
-          <CardDescription>
-            Add descriptions to help potential buyers understand what they're seeing.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {galleryImages.map((image, index) => (
-            <FormField
-              key={image.id || index}
-              control={control}
-              name={`media.galleryImages.${index}.alt`}
-              render={({ field }) => (
-                <FormItem className="flex items-center space-x-4">
-                  <img 
-                    src={image.url} 
-                    alt={image.alt || `Image ${index + 1}`}
-                    className="w-16 h-16 object-cover rounded-md"
-                  />
-                  <div className="flex-grow">
-                    <FormLabel>Image {index + 1} Description {index === 0 ? "(Featured)" : ""}</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Describe what this image shows" 
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
+      {/* Image Gallery */}
+      {galleryImages.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-lg font-medium">Image Gallery</CardTitle>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                      <span>= Featured Image</span>
+                      <Info className="h-4 w-4 ml-1 text-muted-foreground cursor-help" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-sm">
+                    <p>The featured image will be the main image displayed in search results and listing previews.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {galleryImages.map((image, index) => (
+                <div 
+                  key={index} 
+                  className="relative group rounded-lg overflow-hidden border border-gray-200"
+                >
+                  <div className="aspect-video w-full relative bg-gray-100">
+                    <img
+                      src={image.url}
+                      alt={`Gallery image ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = '/placeholder-image.jpg';
+                      }}
+                    />
+                    
+                    {/* Featured badge */}
+                    {featuredImage && featuredImage.url === image.url && (
+                      <div className="absolute top-2 left-2 bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                        Featured
+                      </div>
+                    )}
                   </div>
-                </FormItem>
-              )}
-            />
-          ))}
-        </CardContent>
-      </Card>
+                  
+                  {/* Image controls */}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    {/* Set as featured button */}
+                    {(!featuredImage || featuredImage.url !== image.url) && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              className="bg-white/90 hover:bg-white"
+                              onClick={() => setAsFeatured(index)}
+                            >
+                              <Star className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Set as featured image</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    
+                    {/* Remove button */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="destructive"
+                            className="bg-red-500/90 hover:bg-red-500"
+                            onClick={() => handleRemoveImage(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Remove image</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Empty slots */}
+              {Array.from({ length: Math.max(0, MIN_IMAGES - galleryImages.length) }).map((_, index) => (
+                <div
+                  key={`empty-${index}`}
+                  className="aspect-video border border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-4 bg-gray-50"
+                >
+                  <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
+                  <p className="text-sm text-gray-500 text-center">Required image</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Help section at the bottom */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
+        <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <h4 className="font-medium text-blue-800 mb-1">Image Tips</h4>
+          <p className="text-sm text-blue-700">
+            Listings with high-quality, well-lit images receive up to 3x more views. Ensure your images clearly show your offering 
+            from multiple angles. The first image you upload will automatically be set as your featured image, but you can change this 
+            by hovering over any image and clicking the star icon.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

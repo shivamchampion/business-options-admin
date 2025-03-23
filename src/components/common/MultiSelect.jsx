@@ -1,176 +1,182 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Check, X, ChevronsUpDown } from 'lucide-react';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
-import { Badge } from '@/components/ui/badge';
+import { X, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 /**
- * A custom select component that allows selecting multiple options
+ * A customizable multi-select component with search functionality
  * 
- * @param {Object} props - Component props
- * @param {Array} props.options - Array of options in format [{value: 'value', label: 'Label'}]
+ * @param {Object} props
+ * @param {Array} props.options - Array of options with label and value
  * @param {Array} props.value - Array of selected values
- * @param {Function} props.onChange - Handler for when selections change
- * @param {string} props.placeholder - Placeholder text when no options are selected
- * @param {number} props.maxSelected - Maximum number of options that can be selected
- * @param {boolean} props.disabled - Whether the input is disabled
+ * @param {Function} props.onChange - Callback for value changes
+ * @param {string} props.placeholder - Placeholder text for empty state
+ * @param {number} props.maxItems - Maximum number of items that can be selected
+ * @param {boolean} props.disabled - Whether the component is disabled
+ * @param {string} props.className - Additional class names
  */
 export const MultiSelect = ({
-  options,
+  options = [],
   value = [],
   onChange,
-  placeholder = "Select options",
-  maxSelected = null,
+  placeholder = "Select items",
+  maxItems = null,
   disabled = false,
+  className = "",
 }) => {
   const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState('');
+  const [searchValue, setSearchValue] = useState("");
   const inputRef = useRef(null);
 
-  // Convert options to a map for easier lookup
-  const optionsMap = options.reduce((acc, option) => {
-    acc[option.value] = option.label;
-    return acc;
-  }, {});
+  // Format value to array if not already
+  const selectedValues = Array.isArray(value) ? value : [];
+  
+  // Check if we've reached the maximum items limit
+  const isMaxItemsSelected = maxItems !== null && selectedValues.length >= maxItems;
+  
+  // Get selected items for display
+  const selectedItems = selectedValues.map(val => 
+    options.find(option => option.value === val) || { label: val, value: val }
+  );
 
-  // Handle adding an option
+  // Handle selecting an item
   const handleSelect = (selectedValue) => {
-    // Don't add if already selected
-    if (value.includes(selectedValue)) {
-      handleRemove(selectedValue);
-      return;
-    }
-
-    // Check if at max selection
-    if (maxSelected !== null && value.length >= maxSelected) {
-      return;
-    }
-
-    const newValue = [...value, selectedValue];
-    onChange(newValue);
+    // Check if item is already selected
+    const isSelected = selectedValues.includes(selectedValue);
     
-    // Clear the search input
-    setInputValue('');
-    
-    // Don't close the popover so user can continue selecting
-    // Also focus the input again
-    if (inputRef.current) {
-      inputRef.current.focus();
+    // Toggle selection
+    let newValues;
+    if (isSelected) {
+      // Remove if already selected
+      newValues = selectedValues.filter(val => val !== selectedValue);
+    } else {
+      // Add if not selected and not at max limit
+      if (isMaxItemsSelected) return;
+      newValues = [...selectedValues, selectedValue];
     }
+    
+    // Call onChange with new values
+    onChange(newValues);
+    
+    // Focus the input after selection
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
   };
 
-  // Handle removing an option
-  const handleRemove = (valueToRemove) => {
-    const newValue = value.filter(v => v !== valueToRemove);
-    onChange(newValue);
+  // Handle removing an item
+  const handleRemove = (e, value) => {
+    e.stopPropagation();
+    const newValues = selectedValues.filter(val => val !== value);
+    onChange(newValues);
   };
-
-  // Filter options based on search input
-  const filteredOptions = options.filter(option => {
-    // Apply search filter if input value exists
-    if (inputValue.trim()) {
-      return option.label.toLowerCase().includes(inputValue.toLowerCase());
-    }
-    return true;
-  });
 
   // Close popover when clicking outside
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (open && !e.target.closest('[data-multiselect]') && !e.target.closest('[data-multiselect-popover]')) {
-        setOpen(false);
-      }
+    const handleClickOutside = () => {
+      if (open) setOpen(false);
     };
-
+    
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [open]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen} data-multiselect>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={`w-full justify-between ${!value.length && 'text-muted-foreground'}`}
+          className={`w-full justify-between ${selectedValues.length > 0 ? 'h-auto min-h-10' : 'h-10'} ${className}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(!open);
+          }}
           disabled={disabled}
-          onClick={() => setOpen(true)}
         >
-          <div className="flex flex-wrap gap-1 items-center">
-            {value.length ? (
-              <>
-                {value.length <= 2 ? (
-                  value.map((val) => (
-                    <Badge 
-                      key={val} // Ensure the key is a primitive value, not an object
-                      variant="secondary"
-                      className="mr-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemove(val);
+          <div className="flex flex-wrap gap-1 max-w-full">
+            {selectedItems.length > 0 ? (
+              <div className="flex flex-wrap gap-1 max-w-full">
+                {selectedItems.map((item) => (
+                  <Badge
+                    key={item.value}
+                    variant="secondary"
+                    className="flex items-center gap-1 px-2 py-0"
+                  >
+                    {item.label}
+                    <button
+                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleRemove(e, item.value);
+                        }
                       }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => handleRemove(e, item.value)}
                     >
-                      {optionsMap[val] || val}
-                      <X className="ml-1 h-3 w-3" />
-                    </Badge>
-                  ))
-                ) : (
-                  <>
-                    <Badge variant="secondary" className="mr-1">
-                      {value.length} selected
-                    </Badge>
-                  </>
-                )}
-              </>
+                      <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
             ) : (
-              <span>{placeholder}</span>
+              <span className="text-muted-foreground">{placeholder}</span>
             )}
           </div>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" data-multiselect-popover>
-        <Command shouldFilter={false}>
+      <PopoverContent className="w-full p-0" style={{ width: 'var(--radix-popover-trigger-width)' }}>
+        <Command className="w-full">
           <CommandInput 
-            placeholder="Search..." 
-            onValueChange={setInputValue} 
-            value={inputValue} 
             ref={inputRef}
+            placeholder="Search..." 
+            value={searchValue}
+            onValueChange={setSearchValue}
             className="h-9"
           />
-          <CommandEmpty>No options found.</CommandEmpty>
-          <CommandGroup className="max-h-64 overflow-auto">
-            {filteredOptions.map((option) => {
-              const isSelected = value.includes(option.value);
-              return (
-                <CommandItem
-                  key={option.value} // Using string value as key instead of object
-                  value={option.value}
-                  onSelect={() => handleSelect(option.value)}
-                >
-                  <div className={`mr-2 flex h-4 w-4 items-center justify-center rounded-sm border ${
-                    isSelected ? "bg-primary border-primary" : "opacity-50"
-                  }`}>
-                    {isSelected ? <Check className="h-3 w-3 text-primary-foreground" /> : null}
-                  </div>
-                  <span>{option.label}</span>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-          {maxSelected !== null && (
+          <CommandList>
+            <CommandEmpty>No item found.</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => {
+                const isSelected = selectedValues.includes(option.value);
+                return (
+                  <CommandItem
+                    key={option.value}
+                    value={option.value}
+                    onSelect={() => handleSelect(option.value)}
+                    disabled={!isSelected && isMaxItemsSelected}
+                    className={`
+                      flex items-center gap-2 
+                      ${!isSelected && isMaxItemsSelected ? "opacity-50 cursor-not-allowed" : ""}
+                    `}
+                  >
+                    <div
+                      className={`
+                        flex h-4 w-4 items-center justify-center rounded-sm border 
+                        ${isSelected ? "bg-primary border-primary" : "opacity-50 border-primary"}
+                      `}
+                    >
+                      {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                    </div>
+                    <span>{option.label}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+          {maxItems !== null && (
             <div className="p-2 text-xs text-muted-foreground border-t">
-              {value.length > 0 ? (
-                <span>
-                  Selected {value.length} of {maxSelected} maximum options
-                </span>
-              ) : (
-                <span>
-                  Select up to {maxSelected} options
-                </span>
-              )}
+              {selectedValues.length} of {maxItems} items selected
             </div>
           )}
         </Command>

@@ -1,61 +1,74 @@
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
+import { 
+  ref, 
+  uploadBytesResumable, 
+  getDownloadURL, 
+  deleteObject 
+} from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 
-// Initialize Firebase Storage
-const storage = getStorage();
-
 /**
- * Upload an image to Firebase Storage with progress tracking
- * 
+ * Upload a listing image to Firebase Storage
  * @param {File} file - The image file to upload
- * @param {string} path - The storage path (e.g., 'listings')
- * @param {Function} onProgress - Progress callback function (receives percentage)
- * @returns {Promise<Object>} - Object containing the download URL and storage path
+ * @param {Function} progressCallback - Optional callback for upload progress (0-100)
+ * @returns {Promise<Object>} - The uploaded image data (url, path, etc.)
  */
-export const uploadImage = async (file, path, onProgress) => {
+export const uploadListingImage = async (file, progressCallback = null) => {
   try {
-    // Validate file is an image
-    if (!file.type.includes('image/')) {
-      throw new Error('File must be an image');
-    }
-    
-    // Generate a unique filename
-    const extension = file.name.split('.').pop();
-    const uniqueFilename = `${uuidv4()}.${extension}`;
-    const fullPath = `${path}/images/${uniqueFilename}`;
+    // Generate a unique path for the image
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `${uuidv4()}.${fileExtension}`;
+    const filePath = `listings/images/${fileName}`;
     
     // Create storage reference
-    const storageRef = ref(storage, fullPath);
+    const storageRef = ref(storage, filePath);
     
-    // Upload the file with progress tracking
+    // Upload the file with progress monitoring
     const uploadTask = uploadBytesResumable(storageRef, file);
     
-    // Return a promise that resolves when the upload is complete
     return new Promise((resolve, reject) => {
       uploadTask.on(
         'state_changed',
         (snapshot) => {
-          // Calculate and report progress
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          if (onProgress) {
-            onProgress(progress);
+          // Calculate and report progress if callback provided
+          if (progressCallback) {
+            const progress = Math.round(
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            );
+            progressCallback(progress);
           }
         },
         (error) => {
           // Handle errors
+          console.error('Upload error:', error);
           reject(error);
         },
         async () => {
           // Upload completed successfully
           try {
-            // Get the download URL
+            // Get download URL
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
             
-            // Resolve with the URL and path
-            resolve({
+            // Create image metadata
+            const imageData = {
               url: downloadURL,
-              path: fullPath,
-            });
+              path: filePath,
+              alt: file.name.split('.')[0], // Use filename without extension as alt text
+              contentType: file.type,
+              size: file.size,
+              uploadedAt: new Date().toISOString(),
+            };
+            
+            // Get image dimensions if possible
+            try {
+              const dimensions = await getImageDimensions(file);
+              imageData.width = dimensions.width;
+              imageData.height = dimensions.height;
+            } catch (err) {
+              console.warn('Could not get image dimensions:', err);
+            }
+            
+            resolve(imageData);
           } catch (error) {
             reject(error);
           }
@@ -63,58 +76,93 @@ export const uploadImage = async (file, path, onProgress) => {
       );
     });
   } catch (error) {
-    console.error('Error uploading image:', error);
+    console.error('Error in uploadListingImage:', error);
     throw error;
   }
 };
 
 /**
- * Upload a document to Firebase Storage with progress tracking
- * 
+ * Delete a listing image from Firebase Storage
+ * @param {string} filePath - The storage path to delete
+ * @returns {Promise<void>}
+ */
+export const deleteListingImage = async (filePath) => {
+  try {
+    const storageRef = ref(storage, filePath);
+    await deleteObject(storageRef);
+  } catch (error) {
+    console.error('Error deleting image:', error);
+    throw error;
+  }
+};
+
+/**
+ * Upload a listing document to Firebase Storage
  * @param {File} file - The document file to upload
- * @param {string} path - The storage path (e.g., 'listings/business/documents')
- * @param {Function} onProgress - Progress callback function (receives percentage)
- * @returns {Promise<Object>} - Object containing the download URL and storage path
+ * @param {string} type - Document type/category
+ * @param {string} description - Optional document description
+ * @param {boolean} isPublic - Whether the document is publicly accessible
+ * @param {Function} progressCallback - Optional callback for upload progress (0-100)
+ * @returns {Promise<Object>} - The uploaded document data
  */
-export const uploadDocument = async (file, path, onProgress) => {
+export const uploadListingDocument = async (
+  file, 
+  type, 
+  description = '', 
+  isPublic = false,
+  progressCallback = null
+) => {
   try {
-    // Generate a unique filename
-    const extension = file.name.split('.').pop();
-    const uniqueFilename = `${uuidv4()}.${extension}`;
-    const fullPath = `${path}/${uniqueFilename}`;
+    // Generate a unique path for the document
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `${uuidv4()}.${fileExtension}`;
+    const filePath = `listings/documents/${type}/${fileName}`;
     
     // Create storage reference
-    const storageRef = ref(storage, fullPath);
+    const storageRef = ref(storage, filePath);
     
-    // Upload the file with progress tracking
+    // Upload the file with progress monitoring
     const uploadTask = uploadBytesResumable(storageRef, file);
     
-    // Return a promise that resolves when the upload is complete
     return new Promise((resolve, reject) => {
       uploadTask.on(
         'state_changed',
         (snapshot) => {
-          // Calculate and report progress
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          if (onProgress) {
-            onProgress(progress);
+          // Calculate and report progress if callback provided
+          if (progressCallback) {
+            const progress = Math.round(
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            );
+            progressCallback(progress);
           }
         },
         (error) => {
           // Handle errors
+          console.error('Upload error:', error);
           reject(error);
         },
         async () => {
           // Upload completed successfully
           try {
-            // Get the download URL
+            // Get download URL
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
             
-            // Resolve with the URL and path
-            resolve({
+            // Create document metadata
+            const documentData = {
+              id: uuidv4(),
+              type: type,
+              name: file.name,
+              description: description,
               url: downloadURL,
-              path: fullPath,
-            });
+              path: filePath,
+              format: fileExtension.toUpperCase(),
+              size: file.size,
+              isPublic: isPublic,
+              uploadedAt: new Date().toISOString(),
+              verificationStatus: 'pending'
+            };
+            
+            resolve(documentData);
           } catch (error) {
             reject(error);
           }
@@ -122,119 +170,42 @@ export const uploadDocument = async (file, path, onProgress) => {
       );
     });
   } catch (error) {
-    console.error('Error uploading document:', error);
+    console.error('Error in uploadListingDocument:', error);
     throw error;
   }
 };
 
 /**
- * Delete a file from Firebase Storage
- * 
- * @param {string} path - The full storage path of the file to delete
+ * Delete a listing document from Firebase Storage
+ * @param {string} filePath - The storage path to delete
  * @returns {Promise<void>}
  */
-export const deleteFile = async (path) => {
+export const deleteListingDocument = async (filePath) => {
   try {
-    if (!path) {
-      throw new Error('File path is required');
-    }
-    
-    // Create a reference to the file
-    const fileRef = ref(storage, path);
-    
-    // Delete the file
-    await deleteObject(fileRef);
+    const storageRef = ref(storage, filePath);
+    await deleteObject(storageRef);
   } catch (error) {
-    console.error('Error deleting file:', error);
+    console.error('Error deleting document:', error);
     throw error;
   }
 };
 
 /**
- * Delete an image from Firebase Storage
- * 
- * @param {string} path - The full storage path of the image
- * @returns {Promise<void>}
+ * Helper function to get image dimensions
+ * @param {File} file - The image file
+ * @returns {Promise<Object>} - The image dimensions {width, height}
  */
-export const deleteImage = deleteFile;
-
-/**
- * Delete a document from Firebase Storage
- * 
- * @param {string} path - The full storage path of the document
- * @returns {Promise<void>}
- */
-export const deleteDocument = deleteFile;
-
-/**
- * Get a signed URL for a file with temporary access
- * 
- * @param {string} path - The full storage path of the file
- * @param {number} expirationMinutes - How long the URL should be valid (in minutes)
- * @returns {Promise<string>} - The signed URL
- */
-export const getSignedUrl = async (path, expirationMinutes = 60) => {
-  try {
-    if (!path) {
-      throw new Error('File path is required');
-    }
-    
-    // Create a reference to the file
-    const fileRef = ref(storage, path);
-    
-    // Get the signed URL
-    // Note: This URL will expire after the specified time
-    const url = await getDownloadURL(fileRef);
-    
-    return url;
-  } catch (error) {
-    console.error('Error getting signed URL:', error);
-    throw error;
-  }
-};
-
-/**
- * Get a list of all files in a directory
- * 
- * @param {string} path - The storage path to list
- * @returns {Promise<Array>} - Array of file metadata
- */
-export const listFiles = async (path) => {
-  try {
-    if (!path) {
-      throw new Error('Directory path is required');
-    }
-    
-    // Note: Firebase Storage JS SDK doesn't provide a direct way to list files
-    // This would typically be handled by a Cloud Function or backend API
-    // This is a placeholder for future implementation
-    
-    throw new Error('listFiles is not implemented in the client-side SDK');
-  } catch (error) {
-    console.error('Error listing files:', error);
-    throw error;
-  }
-};
-
-/**
- * Get metadata for a file
- * 
- * @param {string} path - The full storage path of the file
- * @returns {Promise<Object>} - File metadata
- */
-export const getFileMetadata = async (path) => {
-  try {
-    if (!path) {
-      throw new Error('File path is required');
-    }
-    
-    // Firebase Storage JS SDK doesn't provide a direct way to get metadata
-    // This would typically be handled by a Cloud Function or backend API
-    // This is a placeholder for future implementation
-    
-    throw new Error('getFileMetadata is not implemented in the client-side SDK');
-  } catch (error) {
-    console.error('Error getting file metadata:', error);
-    throw error;
-  }
+const getImageDimensions = (file) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({ width: img.width, height: img.height });
+      URL.revokeObjectURL(img.src); // Clean up
+    };
+    img.onerror = () => {
+      reject(new Error('Failed to load image'));
+      URL.revokeObjectURL(img.src); // Clean up
+    };
+    img.src = URL.createObjectURL(file);
+  });
 };

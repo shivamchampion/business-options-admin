@@ -1,105 +1,121 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useFormContext } from 'react-hook-form';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Info, AlertCircle } from 'lucide-react';
+import { 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormControl, 
+  FormDescription, 
+  FormMessage 
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { MultiSelect } from '@/components/common/MultiSelect';
-import { LISTING_TYPES, INDUSTRIES, PLANS, COUNTRIES, STATES_BY_COUNTRY } from '@/utils/constants';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { LISTING_TYPES, INDUSTRIES, STATES, CITIES, LISTING_STATUSES, PLAN_TYPES } from '@/utils/constants';
 
 const BasicInfo = () => {
-  const { control, watch, setValue, formState: { errors } } = useFormContext();
-  
-  // Watch for key fields
-  const selectedCountry = watch('location.country') || 'India';
-  const listingType = watch('type');
-  
-  // Debug logging
-  console.log('Form values:', {
-    type: listingType,
-    typeIsObject: typeof listingType === 'object',
-    selectedCountry
-  });
-  
-  // Fix if type is stored as an object
-  useEffect(() => {
-    if (listingType && typeof listingType === 'object' && listingType.value) {
-      console.log('Converting type from object to string:', listingType.value);
-      setValue('type', listingType.value);
-    }
-  }, [listingType, setValue]);
-  
+  const { control, watch, formState: { errors } } = useFormContext();
+  const selectedState = watch('location.state');
+
+  // Filter cities based on selected state
+  const filteredCities = selectedState 
+    ? CITIES.filter(city => city.state === selectedState)
+    : [];
+
   return (
     <div className="space-y-8">
-      <div className="text-lg font-semibold">Step 1: Basic Information</div>
-      <p className="text-gray-600">
-        Provide essential details about your listing. Fields marked with an asterisk (*) are required.
-      </p>
-      
+      {/* Listing Type Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Listing Type & Details</CardTitle>
-          <CardDescription>
-            Select the type of listing and provide basic information
-          </CardDescription>
+          <CardTitle className="text-lg font-medium">Type Selection</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Listing Type */}
+        <CardContent>
           <FormField
             control={control}
             name="type"
             render={({ field }) => (
-              <FormItem className="space-y-3">
-                <FormLabel>
-                  Listing Type <span className="text-red-500">*</span>
-                </FormLabel>
+              <FormItem className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <FormLabel className="text-base">Listing Type</FormLabel>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm">
+                        <p>Choose the category that best describes your listing. This determines the specific information required in later steps.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <FormControl>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     {LISTING_TYPES.map((type) => (
-                      <div 
-                        key={type.value} 
-                        className={`border-2 rounded-md p-4 cursor-pointer transition-all ${
-                          field.value === type.value 
-                            ? 'border-blue-600 bg-blue-50' 
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
+                      <div
+                        key={type.value}
+                        className={`
+                          relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all
+                          ${field.value === type.value 
+                            ? 'border-primary bg-primary/5' 
+                            : 'border-gray-200 hover:border-gray-300'}
+                        `}
                         onClick={() => field.onChange(type.value)}
                       >
-                        <div className="flex flex-col items-center text-center">
-                          <span className="text-2xl mb-2">{type.icon}</span>
-                          <span className="font-medium">{type.label}</span>
-                          <span className="text-xs text-gray-500 mt-1">{type.description}</span>
+                        <div className="p-2 rounded-full bg-primary/10 mb-3">
+                          {type.icon}
                         </div>
+                        <span className="font-medium text-center">{type.label}</span>
+                        <span className="text-xs text-muted-foreground text-center mt-1">{type.description}</span>
                       </div>
                     ))}
                   </div>
                 </FormControl>
-                <FormDescription>
-                  This determines the specific information we'll collect for your listing
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
+        </CardContent>
+      </Card>
+
+      {/* Basic Information Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">Basic Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
           {/* Listing Name */}
           <FormField
             control={control}
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  Listing Name <span className="text-red-500">*</span>
-                </FormLabel>
+                <div className="flex items-center gap-2">
+                  <FormLabel>Listing Name</FormLabel>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm">
+                        <p>The official name of your listing. This will be the primary identifier used for search and display.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <FormControl>
-                  <Input 
-                    placeholder="Enter the name of your listing" 
-                    {...field} 
-                  />
+                  <Input placeholder="Enter the name of your listing" {...field} />
                 </FormControl>
                 <FormDescription>
-                  This will be the main title displayed for your listing (3-100 characters)
+                  3-100 characters. Use the official business or project name.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -112,22 +128,33 @@ const BasicInfo = () => {
             name="industries"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  Industries <span className="text-red-500">*</span>
-                </FormLabel>
+                <div className="flex items-center gap-2">
+                  <FormLabel>Industries</FormLabel>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm">
+                        <p>Select up to 3 industries that best represent your listing. These help potential buyers find your listing.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <FormControl>
                   <MultiSelect
-                    options={INDUSTRIES}
-                    value={Array.isArray(field.value) ? field.value : []}
-                    onChange={(newValue) => {
-                      field.onChange(newValue);
-                    }}
                     placeholder="Select up to 3 industries"
-                    maxSelected={3}
+                    options={INDUSTRIES.map(industry => ({
+                      label: industry.name,
+                      value: industry.id
+                    }))}
+                    maxItems={3}
+                    value={field.value || []}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormDescription>
-                  Select up to 3 industries that best represent this listing
+                  Select 1-3 industries that accurately represent your listing.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -140,24 +167,142 @@ const BasicInfo = () => {
             name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  Description <span className="text-red-500">*</span>
-                </FormLabel>
+                <div className="flex items-center gap-2">
+                  <FormLabel>Description</FormLabel>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm">
+                        <p>Provide a comprehensive overview of your listing. This is the first detailed information potential buyers will see.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <FormControl>
                   <Textarea 
-                    placeholder="Provide a comprehensive overview of your listing" 
-                    className="min-h-[150px]" 
+                    placeholder="Describe your listing in detail" 
+                    className="min-h-[150px]"
                     {...field} 
                   />
                 </FormControl>
                 <div className="flex justify-between">
                   <FormDescription>
-                    Detailed description of the opportunity (100-5000 characters)
+                    100-5000 characters. Provide a detailed overview.
                   </FormDescription>
-                  <span className="text-xs text-muted-foreground">
-                    {field.value?.length || 0} / 5000
+                  <span className={`text-xs ${
+                    field.value?.length > 5000 ? 'text-destructive' : 
+                    field.value?.length > 4500 ? 'text-amber-500' : 
+                    'text-muted-foreground'
+                  }`}>
+                    {field.value?.length || 0}/5000
                   </span>
                 </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Status */}
+          <FormField
+            control={control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center gap-2">
+                  <FormLabel>Status</FormLabel>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm">
+                        <p>The current stage of your listing. Draft listings are not visible to others.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <FormControl>
+                  <Select 
+                    defaultValue={field.value || 'draft'} 
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LISTING_STATUSES.map(status => (
+                        <SelectItem 
+                          key={status.value} 
+                          value={status.value}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${status.colorClass}`}></div>
+                            {status.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormDescription>
+                  All new listings start as drafts and require approval before publishing.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Plan Type */}
+          <FormField
+            control={control}
+            name="plan"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center gap-2">
+                  <FormLabel>Plan Type</FormLabel>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm">
+                        <p>The visibility tier determines your listing's exposure and available features.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <FormControl>
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    {PLAN_TYPES.map((plan) => (
+                      <div
+                        key={plan.value}
+                        className={`
+                          relative flex flex-col p-4 rounded-lg border-2 cursor-pointer transition-all
+                          ${field.value === plan.value 
+                            ? 'border-primary bg-primary/5' 
+                            : 'border-gray-200 hover:border-gray-300'}
+                        `}
+                        onClick={() => field.onChange(plan.value)}
+                      >
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="font-medium">{plan.label}</span>
+                          {plan.highlight && (
+                            <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full">
+                              Popular
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground mb-2">{plan.description}</span>
+                        <span className="font-bold text-sm">{plan.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Choose the plan that best fits your needs. You can upgrade anytime.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -165,112 +310,40 @@ const BasicInfo = () => {
         </CardContent>
       </Card>
 
+      {/* Location Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Location & Plan Information</CardTitle>
-          <CardDescription>
-            Provide location details and select your visibility plan
-          </CardDescription>
+          <CardTitle className="text-lg font-medium">Location</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Plan Type */}
-          <FormField
-            control={control}
-            name="plan"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  Plan Type <span className="text-red-500">*</span>
-                </FormLabel>
-                <Select 
-                  onValueChange={field.onChange} 
-                  value={field.value || ""}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your plan" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {PLANS.map((plan) => (
-                      <SelectItem key={plan.value} value={plan.value}>
-                        {plan.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormDescription>
-                  Determines visibility level and premium features
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Country */}
-          <FormField
-            control={control}
-            name="location.country"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  Country <span className="text-red-500">*</span>
-                </FormLabel>
-                <Select 
-                  onValueChange={(value) => {
-                    field.onChange(value);
-                    // Clear state when country changes
-                    setValue('location.state', '');
-                  }} 
-                  value={field.value || 'India'}
-                  defaultValue="India"
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a country" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {COUNTRIES.map((country) => (
-                      <SelectItem key={country.value} value={country.value}>
-                        {country.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* State and City - Side by Side */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* State */}
             <FormField
               control={control}
               name="location.state"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>
-                    State <span className="text-red-500">*</span>
-                  </FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
-                    value={field.value || ""}
-                  >
-                    <FormControl>
+                  <FormLabel>State</FormLabel>
+                  <FormControl>
+                    <Select 
+                      value={field.value || ""} 
+                      onValueChange={field.onChange}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a state" />
+                        <SelectValue placeholder="Select state" />
                       </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {(STATES_BY_COUNTRY[selectedCountry] || []).map((state) => (
-                        <SelectItem key={state.value} value={state.value}>
-                          {state.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      <SelectContent>
+                        {STATES.map(state => (
+                          <SelectItem key={state.code} value={state.code}>
+                            {state.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormDescription>
+                    The state where the listing is primarily located.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -282,151 +355,96 @@ const BasicInfo = () => {
               name="location.city"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>
-                    City <span className="text-red-500">*</span>
-                  </FormLabel>
+                  <FormLabel>City</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter city" {...field} />
+                    <Select 
+                      value={field.value || ""} 
+                      onValueChange={field.onChange}
+                      disabled={!selectedState}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={selectedState ? "Select city" : "Select state first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredCities.map(city => (
+                          <SelectItem key={city.id} value={city.id}>
+                            {city.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </FormControl>
+                  <FormDescription>
+                    The city where the listing is primarily located.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
-
-          {/* Address */}
-          <FormField
-            control={control}
-            name="location.address"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Street Address</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter street address (optional)" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Pincode */}
-          <FormField
-            control={control}
-            name="location.pincode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Pincode/ZIP</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter pincode (optional)" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </CardContent>
       </Card>
 
+      {/* Contact Information Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Contact Information</CardTitle>
-          <CardDescription>
-            How potential buyers or investors can reach you
-          </CardDescription>
+          <CardTitle className="text-lg font-medium">Contact Information</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Contact Email and Phone - Side by Side */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Contact Email */}
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Email */}
             <FormField
               control={control}
               name="contactInfo.email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>
-                    Contact Email <span className="text-red-500">*</span>
-                  </FormLabel>
+                  <FormLabel>Contact Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Enter email address" {...field} />
+                    <Input type="email" placeholder="contact@example.com" {...field} />
                   </FormControl>
+                  <FormDescription>
+                    This email will be used for inquiries about your listing.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Contact Phone */}
+            {/* Phone */}
             <FormField
               control={control}
               name="contactInfo.phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Contact Phone</FormLabel>
+                  <div className="flex items-center gap-1">
+                    <FormLabel>Contact Phone</FormLabel>
+                    <span className="text-sm text-muted-foreground">(Optional)</span>
+                  </div>
                   <FormControl>
-                    <Input placeholder="Enter phone number (optional)" {...field} />
+                    <Input type="tel" placeholder="+91 9876543210" {...field} />
                   </FormControl>
+                  <FormDescription>
+                    Include country code for international contacts.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
-
-          {/* Contact Name */}
-          <FormField
-            control={control}
-            name="contactInfo.contactName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Contact Person</FormLabel>
-                <FormControl>
-                  <Input placeholder="Name of contact person (optional)" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Website */}
-          <FormField
-            control={control}
-            name="contactInfo.website"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Website</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter website URL (optional)" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Preferred Contact Method */}
-          <FormField
-            control={control}
-            name="contactInfo.preferredContactMethod"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Preferred Contact Method</FormLabel>
-                <Select 
-                  onValueChange={field.onChange} 
-                  value={field.value || ""}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select preferred contact method" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="phone">Phone</SelectItem>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </CardContent>
       </Card>
+      
+      {/* Help section at the bottom */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
+        <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <h4 className="font-medium text-amber-800 mb-1">Need help with your listing?</h4>
+          <p className="text-sm text-amber-700">
+            Complete all required fields to proceed to the next step. If you're unsure about any field, 
+            hover over the information icon for guidance or refer to our <a href="/help/listings" className="text-blue-600 underline">listing guide</a>.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

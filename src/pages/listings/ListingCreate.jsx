@@ -1,97 +1,95 @@
-import React, { useState } from 'react';
-import { Helmet } from 'react-helmet-async';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Toast } from '@/components/ui/use-toast';
+import { Loader2 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import ListingForm from '@/components/listings/ListingForm';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
-import PageHeader from '@/components/layout/PageHeader';
-import Breadcrumbs from '@/components/layout/Breadcrumbs';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/hooks/useAuth';
-import { createListing } from '@/services/listings';
+import { Button } from '@/components/ui/button';
 
 const ListingCreate = () => {
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const breadcrumbItems = [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Listings', path: '/listings' },
-    { label: 'Create Listing', path: '/listings/create' },
-  ];
+  useEffect(() => {
+    // Check user authentication and permissions
+    if (!authLoading) {
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          description: "Please login to create a listing",
+          variant: "destructive",
+        });
+        navigate('/login', { state: { returnUrl: '/listings/create' } });
+        return;
+      }
 
-  const handleSubmit = async (formData) => {
-    try {
-      setIsSubmitting(true);
-      
-      // Add owner information and metadata
-      const listingData = {
-        ...formData,
-        ownerId: user?.uid || 'unknown',
-        ownerName: user?.displayName || 'Unknown User',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'pending', // New listings start as pending for review
-        analytics: {
-          viewCount: 0,
-          uniqueViewCount: 0,
-          contactCount: 0,
-          favoriteCount: 0,
-        },
-      };
+      // Check if user has create listing permission
+      const hasPermission = user.permissions?.listings?.create;
+      if (!hasPermission) {
+        toast({
+          title: "Permission denied",
+          description: "You don't have permission to create listings",
+          variant: "destructive",
+        });
+        navigate('/dashboard');
+        return;
+      }
 
-      // In a real app, this would call your API
-      console.log('Submitting listing data:', listingData);
-      
-      // For demonstration purposes - simulate API call with delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock response
-      const listingId = 'listing-' + Math.floor(Math.random() * 1000);
-
-      toast({
-        title: "Listing Created Successfully!",
-        description: "Your listing has been submitted for review.",
-        variant: "success",
-      });
-
-      // Redirect to the listing detail view
-      navigate(`/listings/${listingId}`);
-    } catch (error) {
-      console.error('Error creating listing:', error);
-      Toast({
-        title: "Error",
-        description: "Failed to create listing. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
+      setInitialLoading(false);
     }
-  };
+  }, [user, authLoading, navigate, toast]);
+
+  // If user navigates away, show confirmation dialog
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
+  if (initialLoading || authLoading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      <Helmet>
-        <title>Create Listing | Business Options Platform</title>
-      </Helmet>
-      
+    <div className="container mx-auto px-4 py-6">
       <PageHeader
         title="Create New Listing"
-        description="Create a new listing for a business, franchise, startup, investor, or digital asset."
-        breadcrumbs={breadcrumbItems}
+        description="Create a new listing in a few simple steps"
+        actions={
+          <Button variant="outline" onClick={() => navigate('/listings')}>
+            Cancel
+          </Button>
+        }
       />
-
-      {isSubmitting ? (
-        <div className="p-12 bg-white rounded-lg shadow-sm flex flex-col items-center justify-center">
-          <LoadingSpinner size="large" />
-          <p className="mt-4 text-gray-600">Submitting your listing...</p>
-        </div>
-      ) : (
-        <div className="p-6 bg-white rounded-lg shadow-sm">
-          <ListingForm onSubmit={handleSubmit} />
-        </div>
-      )}
-    </>
+      
+      <div className="mt-6">
+        <ListingForm 
+          userId={user.uid} 
+          onComplete={(listingId) => {
+            toast({
+              title: "Listing created successfully",
+              description: "Your listing has been created and is pending review",
+            });
+            navigate(`/listings/${listingId}`);
+          }}
+        />
+      </div>
+    </div>
   );
 };
 

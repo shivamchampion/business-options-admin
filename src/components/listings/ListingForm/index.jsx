@@ -1,272 +1,300 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import BasicInfo from './BasicInfo';
 import MediaUpload from './MediaUpload';
-import ListingDetails from './ListingDetails';
-import Documents from './Documents';
-import ReviewSubmit from './ReviewSubmit';
-import { baseListingSchema } from '@/lib/validators';
+import { useToast } from '@/components/ui/use-toast';
+import { basicInfoSchema } from '@/utils/validators';
+import { saveListingDraft, createListing } from '@/services/listings';
 
 const STEPS = [
-  { id: 'basic-info', label: 'Basic Info' },
-  { id: 'media-upload', label: 'Media' },
-  { id: 'details', label: 'Details' },
-  { id: 'documents', label: 'Documents' },
-  { id: 'review', label: 'Review & Submit' }
+  { id: 'basic-info', title: 'Basic Info', component: BasicInfo, schema: basicInfoSchema },
+  { id: 'media-upload', title: 'Media Upload', component: MediaUpload },
+  { id: 'details', title: 'Details' },
+  { id: 'documents', title: 'Documents' },
+  { id: 'review', title: 'Review & Submit' },
 ];
 
-const DRAFT_STORAGE_KEY = 'listing_form_draft';
-
-const ListingForm = ({ onSubmit, initialData = {} }) => {
+const ListingForm = ({ userId, onComplete, initialData = null }) => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [showExitDialog, setShowExitDialog] = useState(false);
-  const [formData, setFormData] = useState({});
-  const initialLoadCompleted = useRef(false);
+  const [formData, setFormData] = useState(initialData || {});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [draftId, setDraftId] = useState(initialData?.id || null);
+  const { toast } = useToast();
 
-  // Set up form with React Hook Form
+  // Set up form with initial data and validation schema for current step
+  const currentStepConfig = STEPS[currentStep];
   const methods = useForm({
-    resolver: zodResolver(baseListingSchema),
-    defaultValues: {},
-    mode: 'onChange'
+    resolver: currentStepConfig.schema ? zodResolver(currentStepConfig.schema) : undefined,
+    defaultValues: {
+      ...formData,
+    },
+    mode: 'onChange',
   });
 
-  const { handleSubmit, reset, formState, watch } = methods;
-  const listingType = watch('type');
+  const { handleSubmit, formState, reset, getValues, trigger } = methods;
 
-  // Load saved draft or initial data exactly once when component mounts
+  // Load saved data into form when step changes
   useEffect(() => {
-    if (initialLoadCompleted.current) {
-      return;
-    }
+    reset({ ...formData });
+  }, [currentStep, reset, formData]);
 
-    // Try to load draft from localStorage
-    const loadFormData = () => {
-      try {
-        // Priority: 1. Initial data from props, 2. Saved draft
-        let dataToLoad = { ...initialData };
-        
-        // Only check localStorage if initial data is empty
-        if (Object.keys(initialData).length === 0) {
-          const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
-          if (savedDraft) {
-            const parsedDraft = JSON.parse(savedDraft);
-            dataToLoad = parsedDraft;
-          }
-        }
-        
-        // Update state and reset form
-        setFormData(dataToLoad);
-        reset(dataToLoad);
-        
-        initialLoadCompleted.current = true;
-      } catch (error) {
-        console.error('Error loading form data:', error);
-        
-        // Fallback to initial data or empty object
-        const fallbackData = Object.keys(initialData).length > 0 ? initialData : {};
-        setFormData(fallbackData);
-        reset(fallbackData);
-        
-        // Clear corrupted localStorage
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-        initialLoadCompleted.current = true;
-      }
-    };
-
-    loadFormData();
-  }, []); // Empty dependency array - run only once
-
-  // Function to manually save draft
-  const saveDraft = () => {
+  // Auto-save draft when form data changes
+  const saveFormDraft = async (data, isAutoSave = false) => {
+    if (isSaving) return;
+    
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    
     try {
-      const currentValues = methods.getValues();
-      const dataToSave = {
+      const completeData = {
         ...formData,
-        ...currentValues
+        ...data,
+        status: 'draft',
+        currentStep: currentStep,
+        updatedAt: new Date(),
+        ownerId: userId,
       };
       
-      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(dataToSave));
-      setFormData(dataToSave);
-      return true;
+      // If we already have a draft ID, update it, otherwise create a new draft
+      const result = await saveListingDraft(draftId, completeData);
+      
+      if (!draftId && result.id) {
+        setDraftId(result.id);
+      }
+      
+      // Update the complete form data
+      setFormData(completeData);
+      setSaveSuccess(true);
+      
+      if (!isAutoSave) {
+        toast({
+          title: "Draft saved",
+          description: "Your listing draft has been saved",
+        });
+      }
+      
+      return result;
     } catch (error) {
       console.error('Error saving draft:', error);
-      return false;
-    }
-  };
-
-  // Handle step completion
-  const completeStep = (data) => {
-    const updatedData = {
-      ...formData,
-      ...data
-    };
-    
-    // Update form data state
-    setFormData(updatedData);
-    
-    // Save draft to localStorage
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(updatedData));
-
-    // If we're on the final step, submit the form
-    if (currentStep === STEPS.length - 1) {
-      handleFinalSubmit(updatedData);
-    } else {
-      // Otherwise, move to the next step
-      setCurrentStep(prev => prev + 1);
-    }
-  };
-
-  // Handle final submission
-  const handleFinalSubmit = async (data) => {
-    try {
-      // Clear draft since we're done with the form
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setSaveError('Failed to save draft. Please try again.');
       
-      // Call onSubmit prop with final data
-      await onSubmit(data);
+      if (!isAutoSave) {
+        toast({
+          title: "Error saving draft",
+          description: "There was a problem saving your draft",
+          variant: "destructive",
+        });
+      }
+      
+      return null;
+    } finally {
+      setIsSaving(false);
+      // Clear success message after 3 seconds
+      if (saveSuccess) {
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    }
+  };
+
+  // Debounced auto-save
+  useEffect(() => {
+    const autoSaveTimeout = setTimeout(() => {
+      if (Object.keys(formData).length > 0) {
+        saveFormDraft(getValues(), true);
+      }
+    }, 30000); // Auto-save every 30 seconds
+
+    return () => clearTimeout(autoSaveTimeout);
+  }, [formData, getValues]);
+
+  const onSubmitStep = async (data) => {
+    // Save current step data
+    await saveFormDraft(data);
+    
+    // If validation passes, go to next step or submit
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      // Submit the entire form
+      handleFinalSubmit();
+    }
+  };
+
+  const handleFinalSubmit = async () => {
+    try {
+      setIsSaving(true);
+      
+      // Final submission - change status from draft to pending
+      const finalData = {
+        ...formData,
+        status: 'pending',
+        submittedAt: new Date(),
+      };
+      
+      const listingId = await createListing(draftId, finalData);
+      
+      if (listingId) {
+        toast({
+          title: "Listing submitted",
+          description: "Your listing has been submitted for review",
+        });
+        
+        if (onComplete) {
+          onComplete(listingId);
+        }
+      }
     } catch (error) {
-      console.error('Error submitting form:', error);
-      // You might want to show an error toast here
+      console.error('Error submitting listing:', error);
+      toast({
+        title: "Error submitting listing",
+        description: "There was a problem submitting your listing",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Go to previous step
   const goToPreviousStep = () => {
-    // Save current state before going back
-    saveDraft();
-    setCurrentStep(prev => Math.max(0, prev - 1));
-  };
-
-  // Handle exit
-  const handleExit = () => {
-    setShowExitDialog(true);
-  };
-
-  // Confirm exit
-  const confirmExit = () => {
-    saveDraft();
-    setShowExitDialog(false);
-    // Navigate back - this would be handled by the router in a real implementation
-  };
-
-  // Render current step
-  const renderStep = () => {
-    switch (currentStep) {
-      case 0:
-        return <BasicInfo />;
-      case 1:
-        return <MediaUpload />;
-      case 2:
-        return <ListingDetails listingType={listingType} />;
-      case 3:
-        return <Documents listingType={listingType} />;
-      case 4:
-        return <ReviewSubmit formData={formData} />;
-      default:
-        return <BasicInfo />;
+    if (currentStep > 0) {
+      // Save current data before going back
+      saveFormDraft(getValues(), true);
+      setCurrentStep(currentStep - 1);
     }
   };
+
+  const CurrentStepComponent = currentStepConfig.component;
 
   return (
-    <FormProvider {...methods}>
-      <div className="flex flex-col space-y-8">
-        {/* Progress Indicator */}
-        <div className="w-full">
-          <div className="flex justify-between mb-2">
-            {STEPS.map((step, index) => (
-              <div 
-                key={step.id}
-                className={`flex flex-col items-center w-1/5 ${index < currentStep ? 'text-blue-600' : index === currentStep ? 'text-blue-600' : 'text-gray-400'}`}
-              >
-                <div 
-                  className={`w-10 h-10 flex items-center justify-center rounded-full border-2 mb-2
-                    ${index < currentStep 
-                      ? 'bg-blue-600 text-white border-blue-600' 
-                      : index === currentStep 
-                        ? 'border-blue-600 text-blue-600' 
-                        : 'border-gray-300 text-gray-400'}`}
-                >
-                  {index < currentStep ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    index + 1
-                  )}
-                </div>
-                <span className="text-sm font-medium">{step.label}</span>
-              </div>
-            ))}
-          </div>
-          <div className="relative h-2 w-full bg-gray-200 rounded">
+    <div className="space-y-6">
+      {/* Progress indicator */}
+      <div className="mb-8">
+        <div className="flex justify-between mb-2">
+          {STEPS.map((step, index) => (
             <div 
-              className="absolute top-0 left-0 h-2 bg-blue-600 rounded transition-all duration-300"
-              style={{ width: `${(currentStep / (STEPS.length - 1)) * 100}%` }}
-            ></div>
-          </div>
-        </div>
-
-        {/* Form Content */}
-        <Card className="p-6">
-          <form onSubmit={handleSubmit(completeStep)}>
-            {renderStep()}
-
-            {/* Action Buttons */}
-            <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
-              <div>
-                {currentStep > 0 && (
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={goToPreviousStep}
-                  >
-                    Previous
-                  </Button>
-                )}
+              key={step.id} 
+              className={`flex flex-col items-center ${
+                index <= currentStep 
+                  ? 'text-primary' 
+                  : 'text-gray-400'
+              }`}
+            >
+              <div className={`
+                flex items-center justify-center w-8 h-8 rounded-full
+                ${index < currentStep 
+                  ? 'bg-primary text-white' 
+                  : index === currentStep 
+                    ? 'border-2 border-primary text-primary' 
+                    : 'border-2 border-gray-300 text-gray-400'
+                }
+              `}>
+                {index < currentStep 
+                  ? <CheckCircle2 className="w-5 h-5" /> 
+                  : index + 1
+                }
               </div>
-              <div className="flex space-x-4">
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  onClick={() => saveDraft() && handleExit()}
+              <span className="mt-2 text-xs text-center hidden sm:block">{step.title}</span>
+            </div>
+          ))}
+        </div>
+        <Progress value={(currentStep / (STEPS.length - 1)) * 100} className="h-2" />
+      </div>
+
+      {/* Form error message */}
+      {formState.errors && Object.keys(formState.errors).length > 0 && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            Please fix the highlighted errors to proceed.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Save status messages */}
+      {saveSuccess && (
+        <Alert variant="success" className="mb-4">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertTitle>Saved</AlertTitle>
+          <AlertDescription>
+            Your changes have been saved successfully.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {saveError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Form content */}
+      <Card className="p-6">
+        <FormProvider {...methods}>
+          <form onSubmit={handleSubmit(onSubmitStep)}>
+            <h2 className="text-2xl font-bold mb-6">{currentStepConfig.title}</h2>
+            {CurrentStepComponent && <CurrentStepComponent />}
+            
+            {/* Navigation buttons */}
+            <div className="mt-6 flex justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={goToPreviousStep}
+                disabled={currentStep === 0 || isSaving}
+              >
+                Previous
+              </Button>
+              
+              <div className="flex space-x-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => saveFormDraft(getValues())}
+                  disabled={isSaving}
                 >
-                  Save Draft
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Draft'
+                  )}
                 </Button>
+                
                 <Button 
-                  type="submit" 
-                  disabled={!formState.isValid}
+                  type="submit"
+                  disabled={isSaving || !formState.isValid}
                 >
-                  {currentStep === STEPS.length - 1 ? 'Submit Listing' : 'Next'}
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : currentStep === STEPS.length - 1 ? (
+                    'Submit Listing'
+                  ) : (
+                    'Continue'
+                  )}
                 </Button>
               </div>
             </div>
           </form>
-        </Card>
-      </div>
-
-      {/* Exit Confirmation Dialog */}
-      <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-        <DialogContent>
-          <DialogTitle>Save Draft and Exit?</DialogTitle>
-          <DialogDescription>
-            Your progress has been saved as a draft. You can return and continue editing at any time.
-          </DialogDescription>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowExitDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={confirmExit}>
-              Exit
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </FormProvider>
+        </FormProvider>
+      </Card>
+    </div>
   );
 };
 
